@@ -1,4 +1,20 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Shree Vaari Chit Finance Admin — multi-branch chit fund management built with Next.js, TypeScript, Tailwind, shadcn/ui and Prisma (PostgreSQL).
+
+## Database (Prisma + PostgreSQL)
+
+Prisma 7 with the pg driver adapter. Schema: `prisma/schema.prisma`, CLI config: `prisma.config.ts`, client singleton: `src/lib/prisma.ts`.
+
+```bash
+cp .env.example .env        # set DATABASE_URL (local Postgres or Supabase)
+createdb shree_vaari        # local dev database (Homebrew PostgreSQL)
+npm run db:migrate          # create/apply migrations
+npm run db:seed             # seed demo data (3 branches, 25 customers, 5 chits, …)
+npm run db:studio           # browse data in Prisma Studio
+```
+
+To point at Supabase later, replace `DATABASE_URL` in `.env` with the Supabase connection string and run `npm run db:migrate` — no schema changes needed.
+
+Sample DB-backed endpoint: `GET /api/branches` (branch list with live aggregates). The UI currently reads from the mock data layer in `src/data`; migrate modules to API routes incrementally.
 
 ## Getting Started
 

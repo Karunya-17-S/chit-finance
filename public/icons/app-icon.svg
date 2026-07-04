@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#4a0610"/>
+  <rect x="96" y="96" width="320" height="320" rx="80" fill="url(#gold)"/>
+  <defs>
+    <linearGradient id="gold" x1="96" y1="96" x2="416" y2="416" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d6a85a"/>
+      <stop offset="1" stop-color="#e8c98c"/>
+    </linearGradient>
+  </defs>
+  <!-- gem mark -->
+  <g stroke="#35040c" stroke-width="22" stroke-linejoin="round" stroke-linecap="round" fill="none">
+    <path d="M186 200 L256 168 L326 200 L346 244 L256 344 L166 244 Z"/>
+    <path d="M186 200 L256 244 L326 200"/>
+    <path d="M256 244 L256 344"/>
+  </g>
+</svg>
