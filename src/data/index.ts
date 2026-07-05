@@ -15,6 +15,8 @@ import { users, getUserById, getUserByRole } from "@/data/users";
 import { reportDefinitions } from "@/data/reports";
 import { collectionTrend } from "@/data/trends";
 import { locationPings, getPingsByEmployee, getLatestPings } from "@/data/locations";
+import { chitPlans, getChitPlanById } from "@/data/chit-plans";
+import { expenses, getExpensesByBranch } from "@/data/expenses";
 import type { Branch, ChitGroup, Customer, Payment } from "@/types";
 
 export {
@@ -55,6 +57,10 @@ export {
   locationPings,
   getPingsByEmployee,
   getLatestPings,
+  chitPlans,
+  getChitPlanById,
+  expenses,
+  getExpensesByBranch,
 };
 
 export interface DataScope {

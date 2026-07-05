@@ -16,6 +16,7 @@ interface Permissions {
   recordPayments: boolean;
   manageTemplates: boolean;
   viewReports: boolean;
+  manageExpenses: boolean;
   manageSettings: boolean;
   readOnly: boolean;
 }
@@ -29,6 +30,7 @@ const PERMISSIONS: Record<UserRole, Permissions> = {
     recordPayments: true,
     manageTemplates: true,
     viewReports: true,
+    manageExpenses: true,
     manageSettings: true,
     readOnly: false,
   },
@@ -40,6 +42,7 @@ const PERMISSIONS: Record<UserRole, Permissions> = {
     recordPayments: true,
     manageTemplates: true,
     viewReports: true,
+    manageExpenses: true,
     manageSettings: false,
     readOnly: false,
   },
@@ -51,6 +54,7 @@ const PERMISSIONS: Record<UserRole, Permissions> = {
     recordPayments: true,
     manageTemplates: false,
     viewReports: false,
+    manageExpenses: false,
     manageSettings: false,
     readOnly: false,
   },
@@ -62,6 +66,7 @@ const PERMISSIONS: Record<UserRole, Permissions> = {
     recordPayments: true,
     manageTemplates: false,
     viewReports: true,
+    manageExpenses: true,
     manageSettings: false,
     readOnly: false,
   },
@@ -73,6 +78,7 @@ const PERMISSIONS: Record<UserRole, Permissions> = {
     recordPayments: false,
     manageTemplates: false,
     viewReports: true,
+    manageExpenses: false,
     manageSettings: false,
     readOnly: true,
   },
@@ -90,6 +96,7 @@ export const PERMISSION_LABELS: Record<keyof Permissions, string> = {
   recordPayments: "Record Payments",
   manageTemplates: "Manage Templates",
   viewReports: "View Reports",
+  manageExpenses: "Manage Expenses",
   manageSettings: "Manage Settings",
   readOnly: "Read Only",
 };

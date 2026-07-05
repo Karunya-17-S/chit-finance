@@ -6,8 +6,10 @@ import {
   Radar,
   Contact,
   Layers,
+  ClipboardList,
   MessageSquareText,
   Wallet,
+  ReceiptText,
   BarChart3,
   Settings,
   type LucideIcon,
@@ -29,8 +31,10 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/tracking", label: "Tracking", icon: Radar, roles: ["main_admin", "branch_admin", "collection_employee"] },
   { href: "/customers", label: "Customers", icon: Contact, roles: ["main_admin", "branch_admin", "collection_employee", "accountant", "viewer"] },
   { href: "/chit-groups", label: "Chit Groups", icon: Layers, roles: ["main_admin", "branch_admin", "accountant", "viewer"] },
+  { href: "/plans", label: "Chit Plans", icon: ClipboardList, roles: ["main_admin", "branch_admin", "accountant", "viewer"] },
   { href: "/templates", label: "Templates", icon: MessageSquareText, roles: ["main_admin", "branch_admin"] },
   { href: "/payments", label: "Payments", icon: Wallet, roles: ["main_admin", "branch_admin", "collection_employee", "accountant", "viewer"] },
+  { href: "/expenses", label: "Expenses", icon: ReceiptText, roles: ["main_admin", "branch_admin", "accountant"] },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["main_admin", "branch_admin", "accountant", "viewer"] },
 ];
 

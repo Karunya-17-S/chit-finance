@@ -4,7 +4,7 @@
  * Run with: npm run db:seed (wipes and re-inserts everything).
  */
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { branches } from "../src/data/branches";
 import { users } from "../src/data/users";
@@ -17,6 +17,8 @@ import { auctions } from "../src/data/auctions";
 import { templates } from "../src/data/templates";
 import { followUps } from "../src/data/followups";
 import { locationPings } from "../src/data/locations";
+import { expenses } from "../src/data/expenses";
+import { chitPlans } from "../src/data/chit-plans";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -26,6 +28,8 @@ const dateOrNull = (s: string | null | undefined) => (s ? new Date(s) : null);
 
 async function main() {
   // Delete in FK-dependency order.
+  await prisma.chitPlan.deleteMany();
+  await prisma.expense.deleteMany();
   await prisma.receipt.deleteMany();
   await prisma.locationPing.deleteMany();
   await prisma.followUp.deleteMany();
@@ -139,6 +143,7 @@ async function main() {
       customerId: m.customerId,
       agreementNo: m.agreementNo,
       joinedDate: date(m.joinedDate),
+      entryPeriod: m.entryPeriod,
       hasWon: m.hasWon,
       wonMonth: m.wonMonth ?? null,
       wonAmount: m.wonAmount ?? null,
@@ -236,6 +241,39 @@ async function main() {
     })),
   });
 
+  await prisma.expense.createMany({
+    data: expenses.map((e) => ({
+      id: e.id,
+      expenseCode: e.expenseCode,
+      branchId: e.branchId,
+      category: e.category,
+      title: e.title,
+      amount: e.amount,
+      date: date(e.date),
+      paidTo: e.paidTo,
+      paymentMode: e.paymentMode,
+      recordedById: e.recordedBy,
+      billNumber: e.billNumber ?? null,
+      remarks: e.remarks ?? null,
+    })),
+  });
+
+  await prisma.chitPlan.createMany({
+    data: chitPlans.map((p) => ({
+      id: p.id,
+      chitValue: p.chitValue,
+      frequency: p.frequency,
+      periods: p.periods,
+      durationLabel: p.durationLabel,
+      members: p.members,
+      totalPayable: p.totalPayable,
+      dailyApprox: p.dailyApprox ?? null,
+      weeklyApprox: p.weeklyApprox ?? null,
+      featured: p.featured ?? false,
+      schedule: p.schedule as unknown as Prisma.InputJsonValue,
+    })),
+  });
+
   const counts = {
     branches: await prisma.branch.count(),
     users: await prisma.user.count(),
@@ -249,6 +287,8 @@ async function main() {
     templates: await prisma.template.count(),
     followUps: await prisma.followUp.count(),
     locationPings: await prisma.locationPing.count(),
+    expenses: await prisma.expense.count(),
+    chitPlans: await prisma.chitPlan.count(),
   };
   console.log("Seeded:", counts);
 }

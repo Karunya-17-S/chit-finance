@@ -112,6 +112,9 @@ export interface ChitMember {
   customerId: string;
   agreementNo: string;
   joinedDate: string;
+  // Collection period (month/week no.) the member joined at — members can enter
+  // an ongoing chit at any point, not only at the start.
+  entryPeriod: number;
   hasWon: boolean;
   wonMonth?: number;
   wonAmount?: number;
@@ -246,4 +249,54 @@ export interface ReportFilters {
   branchId?: string;
   employeeId?: string;
   chitGroupId?: string;
+}
+
+// A published chit scheme (as printed on the company's calculation charts).
+// Each row is one collection period: what the member pays, and the payout
+// ("கிடைக்கும் தொகை") they receive if they take the chit that period.
+export interface ChitPlanRow {
+  period: number; // month or week number
+  installment: number;
+  payout: number;
+}
+
+export interface ChitPlan {
+  id: string;
+  chitValue: number; // face value, e.g. 100000 for "1 லட்சம்"
+  frequency: CollectionFrequency;
+  periods: number; // number of installments (10, 20, 29, 50, …)
+  durationLabel: string; // "10 Months", "50 Weeks"
+  members: number | null; // planned member count; null = open/unlimited
+  totalPayable: number; // sum of installments (chart footer total)
+  dailyApprox?: number; // "தினசரி" approximate daily figure, if printed
+  weeklyApprox?: number; // "வாரம்" approximate weekly figure, if printed
+  featured?: boolean;
+  schedule: ChitPlanRow[];
+}
+
+export type ExpenseCategory =
+  | "salary"
+  | "rent"
+  | "utilities"
+  | "commission"
+  | "marketing"
+  | "travel"
+  | "office_supplies"
+  | "maintenance"
+  | "legal_compliance"
+  | "miscellaneous";
+
+export interface Expense {
+  id: string;
+  expenseCode: string;
+  branchId: string;
+  category: ExpenseCategory;
+  title: string;
+  amount: number;
+  date: string;
+  paidTo: string;
+  paymentMode: PaymentMode;
+  recordedBy: string; // employeeId / userId
+  billNumber?: string;
+  remarks?: string;
 }

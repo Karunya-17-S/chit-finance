@@ -19,6 +19,19 @@ export function formatCurrencyCompact(amount: number): string {
   return inrCompact.format(amount);
 }
 
+// Indian value label: "1 Lakh", "2.5 Lakh", "1 Crore".
+export function formatValueLabel(amount: number): string {
+  if (amount >= 10000000) {
+    const cr = amount / 10000000;
+    return `${Number.isInteger(cr) ? cr : cr.toFixed(2)} Crore`;
+  }
+  if (amount >= 100000) {
+    const l = amount / 100000;
+    return `${Number.isInteger(l) ? l : l.toFixed(2)} Lakh`;
+  }
+  return inr.format(amount);
+}
+
 export function formatDate(date: string | Date | null, style: "short" | "medium" | "long" = "medium"): string {
   if (!date) return "—";
   const d = typeof date === "string" ? new Date(date) : date;

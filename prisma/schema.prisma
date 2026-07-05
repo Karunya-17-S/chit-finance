@@ -93,6 +93,19 @@ enum LocationStatus {
   idle
 }
 
+enum ExpenseCategory {
+  salary
+  rent
+  utilities
+  commission
+  marketing
+  travel
+  office_supplies
+  maintenance
+  legal_compliance
+  miscellaneous
+}
+
 model User {
   id        String   @id @default(cuid())
   name      String
@@ -127,6 +140,7 @@ model Branch {
   payments      Payment[]
   followUps     FollowUp[]
   locationPings LocationPing[]
+  expenses      Expense[]
 
   @@map("branches")
 }
@@ -153,6 +167,7 @@ model Employee {
   followUps         FollowUp[]
   receiptsIssued    Receipt[]
   locationPings     LocationPing[]
+  expensesRecorded  Expense[]
 
   @@index([branchId])
   @@map("employees")
@@ -226,6 +241,8 @@ model ChitMember {
   customerId  String   @map("customer_id")
   agreementNo String   @map("agreement_no")
   joinedDate  DateTime @map("joined_date") @db.Date
+  // Collection period the member entered at (members can join mid-cycle).
+  entryPeriod Int      @default(1) @map("entry_period")
   hasWon      Boolean  @default(false) @map("has_won")
   wonMonth    Int?     @map("won_month")
   wonAmount   Decimal? @map("won_amount") @db.Decimal(14, 2)
@@ -354,4 +371,44 @@ model LocationPing {
 
   @@index([employeeId, timestamp])
   @@map("location_pings")
+}
+
+model Expense {
+  id           String          @id @default(cuid())
+  expenseCode  String          @unique @map("expense_code")
+  branchId     String          @map("branch_id")
+  category     ExpenseCategory
+  title        String
+  amount       Decimal         @db.Decimal(12, 2)
+  date         DateTime        @db.Date
+  paidTo       String          @map("paid_to")
+  paymentMode  PaymentMode     @map("payment_mode")
+  recordedById String          @map("recorded_by")
+  billNumber   String?         @map("bill_number")
+  remarks      String?
+
+  branch     Branch   @relation(fields: [branchId], references: [id])
+  recordedBy Employee @relation(fields: [recordedById], references: [id])
+
+  @@index([branchId, date])
+  @@index([category])
+  @@map("expenses")
+}
+
+// Published chit scheme (calculation chart). The per-period installment/payout
+// schedule is stored as JSON since it is read-only reference data.
+model ChitPlan {
+  id            String              @id @default(cuid())
+  chitValue     Decimal             @map("chit_value") @db.Decimal(14, 2)
+  frequency     CollectionFrequency
+  periods       Int
+  durationLabel String              @map("duration_label")
+  members       Int?
+  totalPayable  Decimal             @map("total_payable") @db.Decimal(14, 2)
+  dailyApprox   Decimal?            @map("daily_approx") @db.Decimal(10, 2)
+  weeklyApprox  Decimal?            @map("weekly_approx") @db.Decimal(10, 2)
+  featured      Boolean             @default(false)
+  schedule      Json
+
+  @@map("chit_plans")
 }
