@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Gem, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { formatDate } from "@/lib/format";
 
 function greetingForHour(hour: number) {
@@ -46,9 +46,8 @@ export function HeroCard({ name }: { name: string }) {
             <p className="text-[10px] font-medium uppercase tracking-wide text-white/60">Today</p>
             <p className="text-sm font-semibold">{formatDate("2026-07-02", "short")}</p>
           </div>
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gold to-gold-light">
-            <Gem className="h-6 w-6 text-maroon-darker" strokeWidth={2.25} />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo.svg" alt="Shree Vaari Chit Finance" className="h-12 w-12 shrink-0 object-contain" />
         </div>
       </div>
     </div>

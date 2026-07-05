@@ -6,7 +6,6 @@ import { LogOut, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/logo";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Gem } from "lucide-react";
 import { NAV_ITEMS, SETTINGS_NAV_ITEM, navItemsForRole } from "@/components/layout/nav-items";
 import { useAuthStore } from "@/store/auth-store";
 import { ROLE_LABELS } from "@/lib/rbac";
@@ -43,9 +42,7 @@ export function SidebarContent({ collapsed = false, onToggleCollapse, onNavigate
       {/* Logo / brand header */}
       <div className={cn("flex items-center gap-2 border-b border-sidebar-border px-4 py-5", collapsed && "justify-center px-2")}>
         {collapsed ? (
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gold to-gold-light">
-            <Gem size={18} className="text-maroon-darker" strokeWidth={2.25} />
-          </div>
+          <Logo size="md" variant="dark" withText={false} />
         ) : (
           <Logo size="md" variant="dark" />
         )}
