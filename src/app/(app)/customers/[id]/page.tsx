@@ -13,6 +13,7 @@ import {
   UserPlus,
   CalendarDays,
   IdCard,
+  BookMarked,
   FileText,
   Upload,
   Layers,
@@ -92,6 +93,7 @@ export default function CustomerDetailPage() {
 
       <SectionCard title="KYC & Contact Information" className="mb-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <InfoItem icon={BookMarked} label="Passbook Number" value={customer.passbookNumber} />
           <InfoItem icon={Phone} label="Phone" value={customer.phone} />
           <InfoItem icon={Phone} label="Alternate Phone" value={customer.alternatePhone ?? "—"} />
           <InfoItem icon={MapPin} label="Address" value={customer.address} />

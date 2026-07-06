@@ -16,6 +16,7 @@ enum UserRole {
   collection_employee
   accountant
   viewer
+  customer
 }
 
 enum Status {
@@ -93,6 +94,14 @@ enum LocationStatus {
   idle
 }
 
+enum AttendanceStatus {
+  present
+  absent
+  half_day
+  leave
+  week_off
+}
+
 enum ExpenseCategory {
   salary
   rent
@@ -141,6 +150,7 @@ model Branch {
   followUps     FollowUp[]
   locationPings LocationPing[]
   expenses      Expense[]
+  attendance    Attendance[]
 
   @@map("branches")
 }
@@ -168,6 +178,7 @@ model Employee {
   receiptsIssued    Receipt[]
   locationPings     LocationPing[]
   expensesRecorded  Expense[]
+  attendance        Attendance[]
 
   @@index([branchId])
   @@map("employees")
@@ -176,6 +187,7 @@ model Employee {
 model Customer {
   id                 String   @id @default(cuid())
   customerCode       String   @unique @map("customer_code")
+  passbookNumber     String   @unique @map("passbook_number")
   name               String
   branchId           String   @map("branch_id")
   phone              String
@@ -210,6 +222,7 @@ model ChitGroup {
   groupName            String              @map("group_name")
   groupCode            String              @unique @map("group_code")
   branchId             String              @map("branch_id")
+  chitPlanId           String?             @map("chit_plan_id")
   chitValue            Decimal             @map("chit_value") @db.Decimal(14, 2)
   // Installment amount per collection period (day/week/month depending on frequency).
   installmentAmount    Decimal             @map("installment_amount") @db.Decimal(12, 2)
@@ -227,6 +240,7 @@ model ChitGroup {
 
   branch             Branch       @relation(fields: [branchId], references: [id])
   collectionEmployee Employee?    @relation(fields: [collectionEmployeeId], references: [id])
+  chitPlan           ChitPlan?    @relation(fields: [chitPlanId], references: [id])
   members            ChitMember[]
   payments           Payment[]
   auctions           Auction[]
@@ -410,5 +424,25 @@ model ChitPlan {
   featured      Boolean             @default(false)
   schedule      Json
 
+  groups ChitGroup[]
+
   @@map("chit_plans")
+}
+
+model Attendance {
+  id         String           @id @default(cuid())
+  employeeId String           @map("employee_id")
+  branchId   String           @map("branch_id")
+  date       DateTime         @db.Date
+  status     AttendanceStatus
+  checkIn    String?          @map("check_in") // "HH:MM"
+  checkOut   String?          @map("check_out")
+  remarks    String?
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  branch   Branch   @relation(fields: [branchId], references: [id])
+
+  @@unique([employeeId, date])
+  @@index([branchId, date])
+  @@map("attendance")
 }

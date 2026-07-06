@@ -12,12 +12,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const currentUser = useAuthStore((s) => s.currentUser);
 
   React.useEffect(() => {
-    if (hasHydrated && !currentUser) {
+    if (!hasHydrated) return;
+    if (!currentUser) {
       router.replace("/login");
+    } else if (currentUser.role === "customer") {
+      // Customers use the self-service portal, not the admin console.
+      router.replace("/portal");
     }
   }, [hasHydrated, currentUser, router]);
 
-  if (!hasHydrated || !currentUser) {
+  if (!hasHydrated || !currentUser || currentUser.role === "customer") {
     return (
       <div className="flex min-h-screen w-full flex-col items-center justify-center gap-4 bg-cream">
         <Logo size="lg" variant="light" />

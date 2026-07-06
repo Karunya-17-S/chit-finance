@@ -6,6 +6,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   collection_employee: "Collection Employee",
   accountant: "Accountant",
   viewer: "Viewer",
+  customer: "Customer",
 };
 
 interface Permissions {
@@ -78,6 +79,19 @@ const PERMISSIONS: Record<UserRole, Permissions> = {
     recordPayments: false,
     manageTemplates: false,
     viewReports: true,
+    manageExpenses: false,
+    manageSettings: false,
+    readOnly: true,
+  },
+  // Customers only use the self-service portal — no admin permissions.
+  customer: {
+    manageBranches: false,
+    manageEmployees: false,
+    manageCustomers: false,
+    manageChitGroups: false,
+    recordPayments: false,
+    manageTemplates: false,
+    viewReports: false,
     manageExpenses: false,
     manageSettings: false,
     readOnly: true,

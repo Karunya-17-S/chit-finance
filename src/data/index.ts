@@ -17,6 +17,7 @@ import { collectionTrend } from "@/data/trends";
 import { locationPings, getPingsByEmployee, getLatestPings } from "@/data/locations";
 import { chitPlans, getChitPlanById } from "@/data/chit-plans";
 import { expenses, getExpensesByBranch } from "@/data/expenses";
+import { attendance, getAttendanceByEmployee, getAttendanceByDate, ATTENDANCE_TODAY } from "@/data/attendance";
 import type { Branch, ChitGroup, Customer, Payment } from "@/types";
 
 export {
@@ -61,6 +62,10 @@ export {
   getChitPlanById,
   expenses,
   getExpensesByBranch,
+  attendance,
+  getAttendanceByEmployee,
+  getAttendanceByDate,
+  ATTENDANCE_TODAY,
 };
 
 export interface DataScope {

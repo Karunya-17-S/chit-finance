@@ -13,11 +13,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { chitPlans } from "@/data";
+import { formatValueLabel } from "@/lib/format";
 import type { Branch, ChitGroup, ChitGroupStatus, CollectionFrequency, Employee } from "@/types";
 
 export interface ChitGroupFormValues {
   groupName: string;
   branchId: string;
+  chitPlanId: string;
   chitValue: number;
   collectionFrequency: CollectionFrequency;
   durationMonths: number;
@@ -32,6 +35,7 @@ export interface ChitGroupFormValues {
 const EMPTY = (defaultBranchId: string): ChitGroupFormValues => ({
   groupName: "",
   branchId: defaultBranchId,
+  chitPlanId: "",
   chitValue: 100000,
   collectionFrequency: "monthly",
   durationMonths: 20,
@@ -65,6 +69,7 @@ export function ChitGroupFormDialog({ open, onOpenChange, group, branches, emplo
           ? {
               groupName: group.groupName,
               branchId: group.branchId,
+              chitPlanId: group.chitPlanId ?? "",
               chitValue: group.chitValue,
               collectionFrequency: group.collectionFrequency,
               durationMonths: group.durationMonths,
@@ -102,6 +107,42 @@ export function ChitGroupFormDialog({ open, onOpenChange, group, branches, emplo
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="chitPlan">Base on Chit Plan (optional)</Label>
+              <Select
+                value={values.chitPlanId || "none"}
+                onValueChange={(v) => {
+                  if (v === "none") {
+                    set("chitPlanId", "");
+                    return;
+                  }
+                  const plan = chitPlans.find((p) => p.id === v);
+                  if (!plan) return;
+                  // Prefill the group's terms from the selected published plan.
+                  setValues((prev) => ({
+                    ...prev,
+                    chitPlanId: plan.id,
+                    chitValue: plan.chitValue,
+                    collectionFrequency: plan.frequency,
+                    durationMonths: plan.frequency === "monthly" ? plan.periods : prev.durationMonths,
+                    totalMembers: plan.members ?? prev.totalMembers,
+                  }));
+                }}
+              >
+                <SelectTrigger id="chitPlan" className="w-full">
+                  <SelectValue placeholder="Custom terms (no plan)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Custom terms (no plan)</SelectItem>
+                  {chitPlans.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {formatValueLabel(p.chitValue)} · {p.durationLabel}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Selecting a plan fills the value, frequency and duration below.</p>
+            </div>
             <div className="col-span-2 space-y-1.5">
               <Label htmlFor="groupName">Group Name</Label>
               <Input id="groupName" required value={values.groupName} onChange={(e) => set("groupName", e.target.value)} />

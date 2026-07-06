@@ -18,6 +18,11 @@ const STATUS_MAP: Record<string, { label: string; className: string }> = {
   moving: { label: "Moving", className: "bg-warning/15 text-warning border-warning/30" },
   collecting: { label: "Collecting", className: "bg-success/15 text-success border-success/30" },
   idle: { label: "Idle", className: "bg-muted text-muted-foreground border-border" },
+  present: { label: "Present", className: "bg-success/15 text-success border-success/30" },
+  absent: { label: "Absent", className: "bg-destructive/15 text-destructive border-destructive/30" },
+  half_day: { label: "Half Day", className: "bg-warning/15 text-warning border-warning/30" },
+  leave: { label: "Leave", className: "bg-violet-500/10 text-violet-600 border-violet-500/30" },
+  week_off: { label: "Week Off", className: "bg-muted text-muted-foreground border-border" },
 };
 
 export function StatusBadge({ status, className }: { status: string; className?: string }) {

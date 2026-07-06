@@ -69,11 +69,13 @@ export default function CustomersPage() {
       updateCustomer(activeCustomer.id, { ...values, alternatePhone: values.alternatePhone || undefined });
       toast.success("Customer updated successfully.");
     } else {
+      const seq = String(customers.length + 1).padStart(3, "0");
       addCustomer({
-        id: `cust-${String(customers.length + 1).padStart(3, "0")}`,
-        customerCode: `SVCF-C${String(customers.length + 1).padStart(3, "0")}`,
+        id: `cust-${seq}`,
+        customerCode: `SVCF-C${seq}`,
         assignedEmployeeId: null,
         ...values,
+        passbookNumber: values.passbookNumber.trim() || `SVCF-PB-${seq}`,
         alternatePhone: values.alternatePhone || undefined,
       });
       toast.success("Customer added successfully.");
@@ -152,7 +154,7 @@ export default function CustomersPage() {
                       <Link href={`/customers/${c.id}`} className="font-medium text-foreground hover:text-maroon hover:underline">
                         {c.name}
                       </Link>
-                      <p className="text-xs text-muted-foreground">{c.customerCode} · {c.phone}</p>
+                      <p className="text-xs text-muted-foreground">Passbook {c.passbookNumber} · {c.phone}</p>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{branch?.location ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{c.occupation}</TableCell>

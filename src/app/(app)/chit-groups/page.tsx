@@ -72,6 +72,7 @@ export default function ChitGroupsPage() {
         ...values,
         monthlyInstallment,
         foremanCommission,
+        chitPlanId: values.chitPlanId || undefined,
         collectionEmployeeId: values.collectionEmployeeId || null,
       });
       toast.success("Chit group updated successfully.");
@@ -86,6 +87,7 @@ export default function ChitGroupsPage() {
         monthlyInstallment,
         foremanCommission,
         ...values,
+        chitPlanId: values.chitPlanId || undefined,
         collectionEmployeeId: values.collectionEmployeeId || null,
       });
       toast.success("Chit group created successfully.");

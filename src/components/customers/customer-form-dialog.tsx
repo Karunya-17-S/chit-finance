@@ -18,6 +18,7 @@ import type { Branch, Customer, Status } from "@/types";
 
 export interface CustomerFormValues {
   name: string;
+  passbookNumber: string;
   branchId: string;
   phone: string;
   alternatePhone: string;
@@ -34,6 +35,7 @@ export interface CustomerFormValues {
 
 const EMPTY = (defaultBranchId: string): CustomerFormValues => ({
   name: "",
+  passbookNumber: "",
   branchId: defaultBranchId,
   phone: "",
   alternatePhone: "",
@@ -68,6 +70,7 @@ export function CustomerFormDialog({ open, onOpenChange, customer, branches, loc
         customer
           ? {
               name: customer.name,
+              passbookNumber: customer.passbookNumber,
               branchId: customer.branchId,
               phone: customer.phone,
               alternatePhone: customer.alternatePhone ?? "",
@@ -110,6 +113,15 @@ export function CustomerFormDialog({ open, onOpenChange, customer, branches, loc
               <div className="col-span-2 space-y-1.5">
                 <Label htmlFor="name">Customer Name</Label>
                 <Input id="name" required value={values.name} onChange={(e) => set("name", e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="passbookNumber">Passbook Number</Label>
+                <Input
+                  id="passbookNumber"
+                  placeholder="Auto-generated if left blank"
+                  value={values.passbookNumber}
+                  onChange={(e) => set("passbookNumber", e.target.value)}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="branch">Branch</Label>

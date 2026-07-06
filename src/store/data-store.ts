@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Branch, Employee, Customer, ChitGroup, Payment, Template, FollowUp, Expense } from "@/types";
+import type { Branch, Employee, Customer, ChitGroup, Payment, Template, FollowUp, Expense, Attendance } from "@/types";
 import { branches as seedBranches } from "@/data/branches";
 import { employees as seedEmployees } from "@/data/employees";
 import { customers as seedCustomers } from "@/data/customers";
@@ -8,6 +8,7 @@ import { payments as seedPayments } from "@/data/payments";
 import { templates as seedTemplates } from "@/data/templates";
 import { followUps as seedFollowUps } from "@/data/followups";
 import { expenses as seedExpenses } from "@/data/expenses";
+import { attendance as seedAttendance } from "@/data/attendance";
 
 // Mutable in-session mock "database". Seeded from src/data/*, mutated via the
 // actions below. Swap this store's internals for Supabase queries/mutations
@@ -21,6 +22,7 @@ interface DataState {
   templates: Template[];
   followUps: FollowUp[];
   expenses: Expense[];
+  attendance: Attendance[];
 
   addBranch: (b: Branch) => void;
   updateBranch: (id: string, patch: Partial<Branch>) => void;
@@ -47,6 +49,9 @@ interface DataState {
   addExpense: (e: Expense) => void;
   updateExpense: (id: string, patch: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
+
+  // Insert or update an attendance record for an employee on a given date.
+  upsertAttendance: (a: Attendance) => void;
 }
 
 export const useDataStore = create<DataState>((set) => ({
@@ -58,6 +63,7 @@ export const useDataStore = create<DataState>((set) => ({
   templates: seedTemplates,
   followUps: seedFollowUps,
   expenses: seedExpenses,
+  attendance: seedAttendance,
 
   addBranch: (b) => set((s) => ({ branches: [b, ...s.branches] })),
   updateBranch: (id, patch) =>
@@ -92,4 +98,12 @@ export const useDataStore = create<DataState>((set) => ({
   updateExpense: (id, patch) =>
     set((s) => ({ expenses: s.expenses.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
   deleteExpense: (id) => set((s) => ({ expenses: s.expenses.filter((x) => x.id !== id) })),
+
+  upsertAttendance: (a) =>
+    set((s) => {
+      const existing = s.attendance.find((x) => x.employeeId === a.employeeId && x.date === a.date);
+      return existing
+        ? { attendance: s.attendance.map((x) => (x.id === existing.id ? { ...existing, ...a, id: existing.id } : x)) }
+        : { attendance: [a, ...s.attendance] };
+    }),
 }));

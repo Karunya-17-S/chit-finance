@@ -19,6 +19,7 @@ import { followUps } from "../src/data/followups";
 import { locationPings } from "../src/data/locations";
 import { expenses } from "../src/data/expenses";
 import { chitPlans } from "../src/data/chit-plans";
+import { attendance } from "../src/data/attendance";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -28,7 +29,7 @@ const dateOrNull = (s: string | null | undefined) => (s ? new Date(s) : null);
 
 async function main() {
   // Delete in FK-dependency order.
-  await prisma.chitPlan.deleteMany();
+  await prisma.attendance.deleteMany();
   await prisma.expense.deleteMany();
   await prisma.receipt.deleteMany();
   await prisma.locationPing.deleteMany();
@@ -37,6 +38,7 @@ async function main() {
   await prisma.payment.deleteMany();
   await prisma.chitMember.deleteMany();
   await prisma.chitGroup.deleteMany();
+  await prisma.chitPlan.deleteMany();
   await prisma.customer.deleteMany();
   await prisma.template.deleteMany();
   await prisma.user.deleteMany();
@@ -96,6 +98,7 @@ async function main() {
     data: customers.map((c) => ({
       id: c.id,
       customerCode: c.customerCode,
+      passbookNumber: c.passbookNumber,
       name: c.name,
       branchId: c.branchId,
       phone: c.phone,
@@ -120,6 +123,7 @@ async function main() {
       groupName: g.groupName,
       groupCode: g.groupCode,
       branchId: g.branchId,
+      chitPlanId: g.chitPlanId ?? null,
       chitValue: g.chitValue,
       installmentAmount: g.monthlyInstallment,
       collectionFrequency: g.collectionFrequency,
@@ -274,6 +278,19 @@ async function main() {
     })),
   });
 
+  await prisma.attendance.createMany({
+    data: attendance.map((a) => ({
+      id: a.id,
+      employeeId: a.employeeId,
+      branchId: a.branchId,
+      date: date(a.date),
+      status: a.status,
+      checkIn: a.checkIn,
+      checkOut: a.checkOut,
+      remarks: a.remarks ?? null,
+    })),
+  });
+
   const counts = {
     branches: await prisma.branch.count(),
     users: await prisma.user.count(),
@@ -289,6 +306,7 @@ async function main() {
     locationPings: await prisma.locationPing.count(),
     expenses: await prisma.expense.count(),
     chitPlans: await prisma.chitPlan.count(),
+    attendance: await prisma.attendance.count(),
   };
   console.log("Seeded:", counts);
 }
