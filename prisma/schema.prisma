@@ -1,0 +1,449 @@
+// Prisma schema for Shree Vaari Chit Finance.
+// Written for PostgreSQL — works against local Postgres in dev and Supabase in
+// production by changing DATABASE_URL only.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  main_admin
+  branch_admin
+  collection_employee
+  accountant
+  viewer
+  customer
+}
+
+enum Status {
+  active
+  inactive
+}
+
+enum EmployeeRole {
+  branch_admin
+  collection_employee
+  accountant
+  viewer
+}
+
+enum ChitGroupStatus {
+  active
+  completed
+  pending
+}
+
+enum CollectionFrequency {
+  daily
+  weekly
+  monthly
+}
+
+enum PaymentMode {
+  cash
+  upi
+  bank_transfer
+  cheque
+}
+
+enum PaymentStatus {
+  paid
+  partial
+  pending
+  overdue
+}
+
+enum PaymentCategory {
+  installment
+  deposit
+}
+
+enum AuctionStatus {
+  scheduled
+  completed
+}
+
+enum TemplateType {
+  payment_reminder
+  due_reminder
+  overdue_warning
+  receipt_message
+  auction_notification
+  new_group_invite
+  festival_greeting
+  branch_announcement
+}
+
+enum FollowUpStatus {
+  new
+  follow_up
+  promise_to_pay
+  paid
+  overdue
+  risk
+}
+
+enum LocationStatus {
+  checked_in
+  moving
+  collecting
+  idle
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  half_day
+  leave
+  week_off
+}
+
+enum ExpenseCategory {
+  salary
+  rent
+  utilities
+  commission
+  marketing
+  travel
+  office_supplies
+  maintenance
+  legal_compliance
+  miscellaneous
+}
+
+model User {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  phone       String
+  role        UserRole
+  branchId    String?  @map("branch_id")
+  avatarUrl   String?  @map("avatar_url")
+  status      Status   @default(active)
+  firebaseUid String?  @unique @map("firebase_uid")
+
+  branch Branch? @relation(fields: [branchId], references: [id])
+
+  @@map("users")
+}
+
+model Branch {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  location    String
+  address     String
+  managerName String   @map("manager_name")
+  phone       String
+  email       String
+  openingDate DateTime @map("opening_date") @db.Date
+  status      Status   @default(active)
+
+  users         User[]
+  employees     Employee[]
+  customers     Customer[]
+  chitGroups    ChitGroup[]
+  payments      Payment[]
+  followUps     FollowUp[]
+  locationPings LocationPing[]
+  expenses      Expense[]
+  attendance    Attendance[]
+
+  @@map("branches")
+}
+
+model Employee {
+  id                 String       @id @default(cuid())
+  employeeCode       String       @unique @map("employee_code")
+  name               String
+  branchId           String       @map("branch_id")
+  role               EmployeeRole
+  phone              String
+  email              String       @unique
+  joiningDate        DateTime     @map("joining_date") @db.Date
+  salary             Decimal      @db.Decimal(12, 2)
+  status             Status       @default(active)
+  collectionTarget   Decimal      @default(0) @map("collection_target") @db.Decimal(12, 2)
+  collectionAchieved Decimal      @default(0) @map("collection_achieved") @db.Decimal(12, 2)
+  avatarUrl          String?      @map("avatar_url")
+
+  branch            Branch         @relation(fields: [branchId], references: [id])
+  assignedCustomers Customer[]     @relation("EmployeeCustomers")
+  collectedPayments Payment[]      @relation("CollectedPayments")
+  chitGroups        ChitGroup[]
+  followUps         FollowUp[]
+  receiptsIssued    Receipt[]
+  locationPings     LocationPing[]
+  expensesRecorded  Expense[]
+  attendance        Attendance[]
+
+  @@index([branchId])
+  @@map("employees")
+}
+
+model Customer {
+  id                 String   @id @default(cuid())
+  customerCode       String   @unique @map("customer_code")
+  passbookNumber     String   @unique @map("passbook_number")
+  name               String
+  branchId           String   @map("branch_id")
+  phone              String
+  alternatePhone     String?  @map("alternate_phone")
+  address            String
+  aadhaarNumber      String   @map("aadhaar_number")
+  panNumber          String   @map("pan_number")
+  occupation         String
+  monthlyIncome      Decimal  @map("monthly_income") @db.Decimal(12, 2)
+  nomineeName        String   @map("nominee_name")
+  nomineePhone       String   @map("nominee_phone")
+  joinedDate         DateTime @map("joined_date") @db.Date
+  status             Status   @default(active)
+  assignedEmployeeId String?  @map("assigned_employee_id")
+  avatarUrl          String?  @map("avatar_url")
+
+  branch           Branch       @relation(fields: [branchId], references: [id])
+  assignedEmployee Employee?    @relation("EmployeeCustomers", fields: [assignedEmployeeId], references: [id])
+  memberships      ChitMember[]
+  payments         Payment[]
+  auctionsWon      Auction[]
+  receipts         Receipt[]
+  followUps        FollowUp[]
+
+  @@index([branchId])
+  @@index([assignedEmployeeId])
+  @@map("customers")
+}
+
+model ChitGroup {
+  id                   String              @id @default(cuid())
+  groupName            String              @map("group_name")
+  groupCode            String              @unique @map("group_code")
+  branchId             String              @map("branch_id")
+  chitPlanId           String?             @map("chit_plan_id")
+  chitValue            Decimal             @map("chit_value") @db.Decimal(14, 2)
+  // Installment amount per collection period (day/week/month depending on frequency).
+  installmentAmount    Decimal             @map("installment_amount") @db.Decimal(12, 2)
+  collectionFrequency  CollectionFrequency @default(monthly) @map("collection_frequency")
+  durationMonths       Int                 @map("duration_months")
+  // Planned capacity — extendable: adding members beyond this bumps it up.
+  totalMembers         Int                 @map("total_members")
+  startDate            DateTime            @map("start_date") @db.Date
+  endDate              DateTime            @map("end_date") @db.Date
+  auctionDate          DateTime            @map("auction_date") @db.Date
+  status               ChitGroupStatus     @default(pending)
+  commissionPercentage Decimal             @map("commission_percentage") @db.Decimal(5, 2)
+  foremanCommission    Decimal             @map("foreman_commission") @db.Decimal(12, 2)
+  collectionEmployeeId String?             @map("collection_employee_id")
+
+  branch             Branch       @relation(fields: [branchId], references: [id])
+  collectionEmployee Employee?    @relation(fields: [collectionEmployeeId], references: [id])
+  chitPlan           ChitPlan?    @relation(fields: [chitPlanId], references: [id])
+  members            ChitMember[]
+  payments           Payment[]
+  auctions           Auction[]
+
+  @@index([branchId])
+  @@map("chit_groups")
+}
+
+model ChitMember {
+  id          String   @id @default(cuid())
+  chitGroupId String   @map("chit_group_id")
+  customerId  String   @map("customer_id")
+  agreementNo String   @map("agreement_no")
+  joinedDate  DateTime @map("joined_date") @db.Date
+  // Collection period the member entered at (members can join mid-cycle).
+  entryPeriod Int      @default(1) @map("entry_period")
+  hasWon      Boolean  @default(false) @map("has_won")
+  wonMonth    Int?     @map("won_month")
+  wonAmount   Decimal? @map("won_amount") @db.Decimal(14, 2)
+  status      Status   @default(active)
+
+  chitGroup ChitGroup @relation(fields: [chitGroupId], references: [id])
+  customer  Customer  @relation(fields: [customerId], references: [id])
+
+  @@unique([chitGroupId, customerId])
+  @@unique([chitGroupId, agreementNo])
+  @@map("chit_members")
+}
+
+model Payment {
+  id              String          @id @default(cuid())
+  paymentCode     String          @unique @map("payment_code")
+  customerId      String          @map("customer_id")
+  branchId        String          @map("branch_id")
+  chitGroupId     String          @map("chit_group_id")
+  // Billing period bucket, e.g. "2026-06".
+  month           String
+  dueAmount       Decimal         @map("due_amount") @db.Decimal(12, 2)
+  paidAmount      Decimal         @default(0) @map("paid_amount") @db.Decimal(12, 2)
+  paymentDate     DateTime?       @map("payment_date") @db.Date
+  paymentMode     PaymentMode?    @map("payment_mode")
+  paymentCategory PaymentCategory @default(installment) @map("payment_category")
+  receiptNumber   String?         @map("receipt_number")
+  billNumber      String?         @map("bill_number")
+  collectedById   String?         @map("collected_by")
+  status          PaymentStatus   @default(pending)
+  remarks         String?
+
+  customer    Customer  @relation(fields: [customerId], references: [id])
+  branch      Branch    @relation(fields: [branchId], references: [id])
+  chitGroup   ChitGroup @relation(fields: [chitGroupId], references: [id])
+  collectedBy Employee? @relation("CollectedPayments", fields: [collectedById], references: [id])
+  receipt     Receipt?
+
+  @@index([branchId, month])
+  @@index([customerId])
+  @@index([chitGroupId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Auction {
+  id                String        @id @default(cuid())
+  chitGroupId       String        @map("chit_group_id")
+  month             Int
+  auctionDate       DateTime      @map("auction_date") @db.Date
+  winnerCustomerId  String?       @map("winner_customer_id")
+  bidAmount         Decimal       @map("bid_amount") @db.Decimal(14, 2)
+  discountAmount    Decimal       @map("discount_amount") @db.Decimal(14, 2)
+  dividendPerMember Decimal       @map("dividend_per_member") @db.Decimal(12, 2)
+  status            AuctionStatus @default(scheduled)
+
+  chitGroup ChitGroup @relation(fields: [chitGroupId], references: [id])
+  winner    Customer? @relation(fields: [winnerCustomerId], references: [id])
+
+  @@unique([chitGroupId, month])
+  @@map("auctions")
+}
+
+model Receipt {
+  id            String      @id @default(cuid())
+  receiptNumber String      @unique @map("receipt_number")
+  paymentId     String      @unique @map("payment_id")
+  customerId    String      @map("customer_id")
+  amount        Decimal     @db.Decimal(12, 2)
+  date          DateTime    @db.Date
+  mode          PaymentMode
+  issuedById    String      @map("issued_by")
+
+  payment  Payment  @relation(fields: [paymentId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+  issuedBy Employee @relation(fields: [issuedById], references: [id])
+
+  @@map("receipts")
+}
+
+model Template {
+  id        String       @id @default(cuid())
+  name      String
+  type      TemplateType
+  content   String
+  variables String[]
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  @@map("templates")
+}
+
+model FollowUp {
+  id                String         @id @default(cuid())
+  customerId        String         @map("customer_id")
+  employeeId        String         @map("employee_id")
+  branchId          String         @map("branch_id")
+  note              String
+  status            FollowUpStatus @default(new)
+  lastContactedDate DateTime?      @map("last_contacted_date") @db.Date
+  nextFollowUpDate  DateTime?      @map("next_follow_up_date") @db.Date
+  promiseToPayDate  DateTime?      @map("promise_to_pay_date") @db.Date
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
+  branch   Branch   @relation(fields: [branchId], references: [id])
+
+  @@index([branchId, status])
+  @@map("follow_ups")
+}
+
+// GPS ping reported by the employee mobile app while on collection rounds.
+model LocationPing {
+  id         String         @id @default(cuid())
+  employeeId String         @map("employee_id")
+  branchId   String         @map("branch_id")
+  lat        Float
+  lng        Float
+  address    String
+  timestamp  DateTime
+  status     LocationStatus
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  branch   Branch   @relation(fields: [branchId], references: [id])
+
+  @@index([employeeId, timestamp])
+  @@map("location_pings")
+}
+
+model Expense {
+  id           String          @id @default(cuid())
+  expenseCode  String          @unique @map("expense_code")
+  branchId     String          @map("branch_id")
+  category     ExpenseCategory
+  title        String
+  amount       Decimal         @db.Decimal(12, 2)
+  date         DateTime        @db.Date
+  paidTo       String          @map("paid_to")
+  paymentMode  PaymentMode     @map("payment_mode")
+  recordedById String          @map("recorded_by")
+  billNumber   String?         @map("bill_number")
+  remarks      String?
+
+  branch     Branch   @relation(fields: [branchId], references: [id])
+  recordedBy Employee @relation(fields: [recordedById], references: [id])
+
+  @@index([branchId, date])
+  @@index([category])
+  @@map("expenses")
+}
+
+// Published chit scheme (calculation chart). The per-period installment/payout
+// schedule is stored as JSON since it is read-only reference data.
+model ChitPlan {
+  id            String              @id @default(cuid())
+  chitValue     Decimal             @map("chit_value") @db.Decimal(14, 2)
+  frequency     CollectionFrequency
+  periods       Int
+  durationLabel String              @map("duration_label")
+  members       Int?
+  totalPayable  Decimal             @map("total_payable") @db.Decimal(14, 2)
+  dailyApprox   Decimal?            @map("daily_approx") @db.Decimal(10, 2)
+  weeklyApprox  Decimal?            @map("weekly_approx") @db.Decimal(10, 2)
+  featured      Boolean             @default(false)
+  schedule      Json
+
+  groups ChitGroup[]
+
+  @@map("chit_plans")
+}
+
+model Attendance {
+  id         String           @id @default(cuid())
+  employeeId String           @map("employee_id")
+  branchId   String           @map("branch_id")
+  date       DateTime         @db.Date
+  status     AttendanceStatus
+  checkIn    String?          @map("check_in") // "HH:MM"
+  checkOut   String?          @map("check_out")
+  remarks    String?
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  branch   Branch   @relation(fields: [branchId], references: [id])
+
+  @@unique([employeeId, date])
+  @@index([branchId, date])
+  @@map("attendance")
+}
