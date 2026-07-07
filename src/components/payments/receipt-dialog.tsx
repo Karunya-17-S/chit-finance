@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/brand/logo";
 import { getGroupsByCustomer } from "@/data";
-import { CheckCircle2, Copy, Printer } from "lucide-react";
+import { CheckCircle2, Copy, Printer, Share2 } from "lucide-react";
 import type { Branch, ChitGroup, Customer, Payment } from "@/types";
 
 interface ReceiptDialogProps {
@@ -34,16 +34,29 @@ function planLabel(chitValue: number): string {
   return `${(chitValue / 1000).toFixed(0)}K`;
 }
 
-export function ReceiptDialog({ open, onOpenChange, payment, customer, branch, chitGroup, collectedByName }: ReceiptDialogProps) {
+export function ReceiptDialog({ 
+  open, 
+  onOpenChange, 
+  payment, 
+  customer, 
+  branch, 
+  chitGroup, 
+  collectedByName 
+}: ReceiptDialogProps) {
   if (!payment) return null;
 
-  const membership = customer && chitGroup ? getGroupsByCustomer(customer.id).find((m) => m.chitGroupId === chitGroup.id) : undefined;
+  const membership = customer && chitGroup 
+    ? getGroupsByCustomer(customer.id).find((m) => m.chitGroupId === chitGroup.id) 
+    : undefined;
   const agreementNo = membership?.agreementNo ?? "—";
   const plan = chitGroup ? planLabel(chitGroup.chitValue) : "—";
-  const paymentDateDMY = payment.paymentDate ? payment.paymentDate.split("-").reverse().join("/") : "—";
+  const paymentDateDMY = payment.paymentDate 
+    ? payment.paymentDate.split("-").reverse().join("/") 
+    : "—";
   const modeLabel = payment.paymentMode ? MODE_LABELS[payment.paymentMode] : "—";
   const isDeposit = payment.paymentCategory === "deposit";
 
+  // Build the message text
   const messageText = [
     "PAYMENT RECEIVED - SHREE VAARI CHIT FINANCE",
     "",
@@ -53,7 +66,7 @@ export function ReceiptDialog({ open, onOpenChange, payment, customer, branch, c
     "",
     `AGREEMENT NO : ${agreementNo}`,
     `PLAN : ${plan}`,
-    `${isDeposit ? "DEPOSIT AMOUNT" : "INSTALLMENT AMOUNT"} : ${payment.paidAmount}`,
+    `${isDeposit ? "DEPOSIT AMOUNT" : "INSTALLMENT AMOUNT"} : ₹${payment.paidAmount.toLocaleString("en-IN")}`,
     `BILL NUMBER : ${payment.billNumber ?? "—"}`,
     `PAYMENT DATE : ${paymentDateDMY}`,
     `PAYMENT TYPE : ${modeLabel}`,
@@ -61,6 +74,20 @@ export function ReceiptDialog({ open, onOpenChange, payment, customer, branch, c
     "THANK YOU FOR YOUR PAYMENT",
   ].join("\n");
 
+  // Generate WhatsApp URL with encoded message
+  const getWhatsAppUrl = () => {
+    const phoneNumber = customer?.phone || "";
+    const encodedMessage = encodeURIComponent(messageText);
+    // If phone number exists, send to specific number, else open WhatsApp with just the message
+    if (phoneNumber) {
+      // Remove any non-digit characters from phone number
+      const cleanNumber = phoneNumber.replace(/\D/g, "");
+      return `https://wa.me/${cleanNumber}?text=${encodedMessage}`;
+    }
+    return `https://wa.me/?text=${encodedMessage}`;
+  };
+
+  // Handle Copy to Clipboard
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(messageText);
@@ -68,6 +95,13 @@ export function ReceiptDialog({ open, onOpenChange, payment, customer, branch, c
     } catch {
       toast.error("Could not copy to clipboard.");
     }
+  }
+
+  // Handle WhatsApp Share
+  function handleWhatsAppShare() {
+    const url = getWhatsAppUrl();
+    window.open(url, "_blank");
+    toast.success("Opening WhatsApp...");
   }
 
   return (
@@ -94,12 +128,19 @@ export function ReceiptDialog({ open, onOpenChange, payment, customer, branch, c
             <div className="space-y-1.5 rounded-lg bg-card p-3 font-medium text-foreground">
               <ReceiptRow label="AGREEMENT NO" value={agreementNo} />
               <ReceiptRow label="PLAN" value={plan} />
-              <ReceiptRow label={isDeposit ? "DEPOSIT AMOUNT" : "INSTALLMENT AMOUNT"} value={`₹${payment.paidAmount.toLocaleString("en-IN")}`} />
+              <ReceiptRow 
+                label={isDeposit ? "DEPOSIT AMOUNT" : "INSTALLMENT AMOUNT"} 
+                value={`₹${payment.paidAmount.toLocaleString("en-IN")}`} 
+              />
               <ReceiptRow label="BILL NUMBER" value={payment.billNumber ?? "—"} />
               <ReceiptRow label="PAYMENT DATE" value={paymentDateDMY} />
               <ReceiptRow label="PAYMENT TYPE" value={modeLabel} />
               {payment.dueAmount - payment.paidAmount > 0 && (
-                <ReceiptRow label="BALANCE DUE" value={`₹${(payment.dueAmount - payment.paidAmount).toLocaleString("en-IN")}`} highlight />
+                <ReceiptRow 
+                  label="BALANCE DUE" 
+                  value={`₹${(payment.dueAmount - payment.paidAmount).toLocaleString("en-IN")}`} 
+                  highlight 
+                />
               )}
             </div>
 
@@ -110,14 +151,38 @@ export function ReceiptDialog({ open, onOpenChange, payment, customer, branch, c
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={handleCopy}>
-            <Copy className="h-4 w-4" /> Copy Message
+        {/* Action Buttons */}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button 
+            variant="outline" 
+            className="flex-1" 
+            onClick={handleCopy}
+          >
+            <Copy className="h-4 w-4 mr-2" /> Copy Message
           </Button>
-          <Button onClick={() => window.print()} className="flex-1 bg-maroon hover:bg-maroon-dark">
-            <Printer className="h-4 w-4" /> Print Receipt
+          
+          {/* ✅ WhatsApp Share Button */}
+          <Button 
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+            onClick={handleWhatsAppShare}
+          >
+            <Share2 className="h-4 w-4 mr-2" /> WhatsApp
+          </Button>
+          
+          <Button 
+            onClick={() => window.print()} 
+            className="flex-1 bg-maroon hover:bg-maroon-dark"
+          >
+            <Printer className="h-4 w-4 mr-2" /> Print
           </Button>
         </div>
+
+        {/* Optional: Show customer phone if available */}
+        {customer?.phone && (
+          <p className="text-center text-xs text-muted-foreground mt-1">
+            Sending to: {customer.phone}
+          </p>
+        )}
       </DialogContent>
     </Dialog>
   );

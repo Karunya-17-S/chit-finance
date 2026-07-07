@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Contact, MoreVertical, FileSpreadsheet } from "lucide-react";
+import { Plus, Contact, MoreVertical, Upload, Trash2, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Toolbar, SearchInput } from "@/components/shared/toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -11,7 +11,20 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { CustomerFormDialog, type CustomerFormValues } from "@/components/customers/customer-form-dialog";
 import { BulkImportDialog } from "@/components/customers/bulk-import-dialog";
 import { useDataStore } from "@/store/data-store";
@@ -22,24 +35,46 @@ import { formatDate } from "@/lib/format";
 import type { Customer } from "@/types";
 
 export default function CustomersPage() {
-  const customers = useDataStore((s) => s.customers);
+  const [customers, setCustomers] = React.useState<Customer[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
   const branches = useDataStore((s) => s.branches);
   const employees = useDataStore((s) => s.employees);
-  const addCustomer = useDataStore((s) => s.addCustomer);
-  const addCustomers = useDataStore((s) => s.addCustomers);
-  const updateCustomer = useDataStore((s) => s.updateCustomer);
 
   const currentUser = useAuthStore((s) => s.currentUser);
   const { branchId, employeeId } = useDataScope();
   const canManage = currentUser ? can(currentUser.role, "manageCustomers") : false;
   const readOnly = currentUser ? isReadOnly(currentUser.role) : false;
 
+  // 📥 Fetch customers from database
+  const fetchCustomers = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/customers');
+      if (!response.ok) throw new Error('Failed to fetch');
+      const data = await response.json();
+      setCustomers(data);
+    } catch (error) {
+      console.error('Failed to load customers:', error);
+      toast.error('Failed to load customers from database');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
+
   const [search, setSearch] = React.useState("");
   const [branchFilter, setBranchFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [importDialogOpen, setImportDialogOpen] = React.useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [activeCustomer, setActiveCustomer] = React.useState<Customer | undefined>(undefined);
+  const [customerToDelete, setCustomerToDelete] = React.useState<Customer | undefined>(undefined);
 
   let scopedCustomers = branchId ? customers.filter((c) => c.branchId === branchId) : customers;
   if (currentUser?.role === "collection_employee") {
@@ -67,23 +102,145 @@ export default function CustomersPage() {
     setDialogOpen(true);
   }
 
-  function handleSubmit(values: CustomerFormValues) {
-    if (activeCustomer) {
-      updateCustomer(activeCustomer.id, { ...values, alternatePhone: values.alternatePhone || undefined });
-      toast.success("Customer updated successfully.");
-    } else {
-      const seq = String(customers.length + 1).padStart(3, "0");
-      addCustomer({
-        id: `cust-${seq}`,
-        customerCode: `SVCF-C${seq}`,
-        assignedEmployeeId: null,
-        ...values,
-        passbookNumber: values.passbookNumber.trim() || `SVCF-PB-${seq}`,
-        alternatePhone: values.alternatePhone || undefined,
+  function handleDeleteClick(customer: Customer) {
+    setCustomerToDelete(customer);
+    setDeleteDialogOpen(true);
+  }
+
+  async function handleDeleteConfirm() {
+    if (!customerToDelete) return;
+
+    try {
+      setIsSubmitting(true);
+      const response = await fetch(`/api/customers?id=${customerToDelete.id}`, {
+        method: 'DELETE',
       });
-      toast.success("Customer added successfully.");
+
+      if (!response.ok) throw new Error('Failed to delete');
+
+      setCustomers(customers.filter(c => c.id !== customerToDelete.id));
+      toast.success(`"${customerToDelete.name}" deleted successfully.`);
+      setDeleteDialogOpen(false);
+      setCustomerToDelete(undefined);
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Failed to delete customer. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setDialogOpen(false);
+  }
+
+  async function handleSubmit(values: CustomerFormValues) {
+    try {
+      setIsSubmitting(true);
+
+      if (activeCustomer) {
+        // UPDATE
+        const response = await fetch('/api/customers', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: activeCustomer.id,
+            ...values,
+            alternatePhone: values.alternatePhone || undefined,
+          }),
+        });
+
+        if (!response.ok) throw new Error('Failed to update');
+        const updatedCustomer = await response.json();
+
+        setCustomers(customers.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
+        toast.success("Customer updated successfully.");
+      } else {
+        // ADD - use timestamp for unique ID
+        const newCustomer = {
+          customerCode: `CUST-${Date.now()}`,
+          assignedEmployeeId: null,
+          ...values,
+          alternatePhone: values.alternatePhone || undefined,
+        };
+
+        const response = await fetch('/api/customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newCustomer),
+        });
+
+        if (!response.ok) throw new Error('Failed to create');
+        const createdCustomer = await response.json();
+
+        setCustomers([...customers, createdCustomer]);
+        toast.success("Customer added successfully.");
+      }
+
+      setDialogOpen(false);
+    } catch (error) {
+      console.error('Submit error:', error);
+      toast.error(activeCustomer ? 'Failed to update customer' : 'Failed to add customer');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleBulkImport(importedCustomers: any[]) {
+    if (!importedCustomers || importedCustomers.length === 0) {
+      toast.error("No customers to import.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      let successCount = 0;
+
+      for (const c of importedCustomers) {
+        const newCustomer = {
+          customerCode: `CUST-${Date.now()}-${successCount}`,
+          name: c.name || "",
+          phone: c.phone || "",
+          alternatePhone: c.alternatePhone || undefined,
+          address: c.address || "",
+          aadhaarNumber: c.aadhaarNumber || "",
+          panNumber: c.panNumber?.toUpperCase() || "",
+          occupation: c.occupation || "",
+          monthlyIncome: Number(c.monthlyIncome) || 0,
+          nomineeName: c.nomineeName || "",
+          nomineePhone: c.nomineePhone || "",
+          joinedDate: c.joinedDate || new Date().toISOString().split("T")[0],
+          branchId: c.branchId || branchId || "br-001",
+          status: c.status?.toLowerCase() === "inactive" ? "inactive" : "active",
+          assignedEmployeeId: null,
+        };
+
+        const response = await fetch('/api/customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newCustomer),
+        });
+
+        if (response.ok) {
+          const created = await response.json();
+          successCount++;
+          setCustomers(prev => [...prev, created]);
+        }
+      }
+
+      toast.success(`${successCount} customers imported successfully!`);
+      setImportDialogOpen(false);
+    } catch (error) {
+      console.error("Import error:", error);
+      toast.error("Failed to import customers.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-maroon" />
+        <span className="ml-2 text-muted-foreground">Loading customers...</span>
+      </div>
+    );
   }
 
   return (
@@ -92,16 +249,23 @@ export default function CustomersPage() {
         title="Customers"
         description="All chit fund customers across branches."
         actions={
-          canManage && (
-            <div className="flex gap-2">
-              <Button onClick={() => setImportDialogOpen(true)} variant="outline" className="border-maroon text-maroon hover:bg-maroon/10">
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Import
-              </Button>
-              <Button onClick={handleAdd} className="bg-maroon hover:bg-maroon-dark">
-                <Plus className="h-4 w-4" /> Add Customer
-              </Button>
-            </div>
-          )
+          <>
+            {canManage && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setImportDialogOpen(true)}
+                  className="border-gold text-gold hover:bg-gold/10"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import Customers
+                </Button>
+                <Button onClick={handleAdd} className="bg-maroon hover:bg-maroon-dark">
+                  <Plus className="h-4 w-4 mr-2" /> Add Customer
+                </Button>
+              </>
+            )}
+          </>
         }
       />
 
@@ -159,15 +323,26 @@ export default function CustomersPage() {
                 return (
                   <TableRow key={c.id}>
                     <TableCell>
-                      <Link href={`/customers/${c.id}`} className="font-medium text-foreground hover:text-maroon hover:underline">
+                      <Link
+                        href={`/customers/${c.id}`}
+                        className="font-medium text-foreground hover:text-maroon hover:underline"
+                      >
                         {c.name}
                       </Link>
-                      <p className="text-xs text-muted-foreground">Passbook {c.passbookNumber} · {c.phone}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {c.customerCode} · {c.phone}
+                      </p>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{branch?.location ?? "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{c.occupation}</TableCell>
-                    <TableCell className="text-muted-foreground">{emp?.name ?? "Unassigned"}</TableCell>
-                    <TableCell className="text-muted-foreground">{formatDate(c.joinedDate, "short")}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {branch?.location ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{c.occupation || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {emp?.name ?? "Unassigned"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatDate(c.joinedDate, "short")}
+                    </TableCell>
                     <TableCell>
                       <StatusBadge status={c.status} />
                     </TableCell>
@@ -183,7 +358,20 @@ export default function CustomersPage() {
                             <DropdownMenuItem asChild>
                               <Link href={`/customers/${c.id}`}>View Profile</Link>
                             </DropdownMenuItem>
-                            {canManage && <DropdownMenuItem onClick={() => handleEdit(c)}>Edit Customer</DropdownMenuItem>}
+                            {canManage && (
+                              <>
+                                <DropdownMenuItem onClick={() => handleEdit(c)}>
+                                  Edit Customer
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteClick(c)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Customer
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -203,17 +391,42 @@ export default function CustomersPage() {
         branches={branches}
         lockBranchId={branchId ?? undefined}
         onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
       />
 
       <BulkImportDialog
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
-        onImport={(imported) => {
-          addCustomers(imported);
-          toast.success(`Successfully imported ${imported.length} customers.`);
-        }}
+        onImport={handleBulkImport}
         branchId={branchId ?? undefined}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Customer</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{customerToDelete?.name}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

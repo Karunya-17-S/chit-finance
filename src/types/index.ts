@@ -6,8 +6,7 @@ export type UserRole =
   | "branch_admin"
   | "collection_employee"
   | "accountant"
-  | "viewer"
-  | "customer";
+  | "viewer";
 
 export type Status = "active" | "inactive";
 
@@ -18,7 +17,6 @@ export interface User {
   phone: string;
   role: UserRole;
   branchId: string | null; // null for main admin
-  customerId?: string; // set for role "customer" — links the login to a Customer record
   avatarUrl?: string;
   status: Status;
 }
@@ -46,6 +44,17 @@ export type EmployeeRole =
   | "accountant"
   | "viewer";
 
+
+
+  export interface AttendanceRecord {
+  id: string;
+  employeeId: string;
+  branchId: string;
+  type: "login" | "logout";
+  timestamp: string;
+  date: string;
+}
+
 export interface Employee {
   id: string;
   employeeCode: string;
@@ -61,12 +70,15 @@ export interface Employee {
   collectionTarget: number;
   collectionAchieved: number;
   avatarUrl?: string;
+  loginTime?: string | null;
+  logoutTime?: string | null;
+  isLoggedIn?: boolean;
+  lastActivityAt?: string | null;
 }
 
 export interface Customer {
   id: string;
   customerCode: string;
-  passbookNumber: string; // unique passbook/agreement booklet number per customer
   name: string;
   branchId: string;
   phone: string;
@@ -92,7 +104,6 @@ export interface ChitGroup {
   groupName: string;
   groupCode: string;
   branchId: string;
-  chitPlanId?: string; // optional link to a published ChitPlan this group is based on
   chitValue: number;
   // Installment amount per collection period (day/week/month depending on frequency).
   monthlyInstallment: number;
@@ -276,19 +287,6 @@ export interface ChitPlan {
   weeklyApprox?: number; // "வாரம்" approximate weekly figure, if printed
   featured?: boolean;
   schedule: ChitPlanRow[];
-}
-
-export type AttendanceStatus = "present" | "absent" | "half_day" | "leave" | "week_off";
-
-export interface Attendance {
-  id: string;
-  employeeId: string;
-  branchId: string;
-  date: string; // ISO date
-  status: AttendanceStatus;
-  checkIn: string | null; // "HH:MM", null when not present
-  checkOut: string | null;
-  remarks?: string;
 }
 
 export type ExpenseCategory =

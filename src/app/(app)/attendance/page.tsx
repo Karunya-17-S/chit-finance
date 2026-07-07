@@ -2,243 +2,306 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { CalendarCheck, UserCheck, UserX, Coffee, CalendarClock, Pencil } from "lucide-react";
+import { Calendar, Clock, User, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
-import { StatCard } from "@/components/shared/stat-card";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { MarkAttendanceDialog, type AttendanceFormValues } from "@/components/attendance/mark-attendance-dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useDataStore } from "@/store/data-store";
 import { useDataScope } from "@/hooks/use-data-scope";
 import { useAuthStore } from "@/store/auth-store";
 import { can } from "@/lib/rbac";
-import { ROLE_LABELS } from "@/lib/rbac";
-import { ATTENDANCE_TODAY } from "@/data";
-import { initials } from "@/lib/format";
-import type { Attendance, Employee } from "@/types";
+import { formatDate, formatTime } from "@/lib/format";
+import type { Employee, AttendanceRecord } from "@/types";
 
 export default function AttendancePage() {
-  const employees = useDataStore((s) => s.employees);
-  const branches = useDataStore((s) => s.branches);
-  const attendance = useDataStore((s) => s.attendance);
-  const upsertAttendance = useDataStore((s) => s.upsertAttendance);
+  const [attendance, setAttendance] = React.useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [isSubmitting, setIsSubmitting] = React.useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = React.useState(
+    new Date().toISOString().split('T')[0]
+  );
 
+  const employees = useDataStore((s) => s.employees) || [];
+  const branches = useDataStore((s) => s.branches) || [];
   const currentUser = useAuthStore((s) => s.currentUser);
   const { branchId } = useDataScope();
   const canManage = currentUser ? can(currentUser.role, "manageEmployees") : false;
 
-  const [date, setDate] = React.useState(ATTENDANCE_TODAY);
-  const [branchFilter, setBranchFilter] = React.useState("all");
-  const [dialogEmployee, setDialogEmployee] = React.useState<Employee | undefined>(undefined);
-  const [dialogOpen, setDialogOpen] = React.useState(false);
+  // Fetch attendance data
+  const fetchAttendance = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/attendance?date=${selectedDate}`);
+      if (!response.ok) throw new Error('Failed to fetch');
+      const data = await response.json();
+      setAttendance(data || []);
+    } catch (error) {
+      console.error('Failed to load attendance:', error);
+      toast.error('Failed to load attendance data');
+      setAttendance([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDate]);
 
-  const scopedEmployees = employees.filter((e) => {
-    if (branchId && e.branchId !== branchId) return false;
-    if (!branchId && branchFilter !== "all" && e.branchId !== branchFilter) return false;
-    return true;
-  });
+  // Initial load and refresh on date change
+  React.useEffect(() => {
+    fetchAttendance();
+  }, [fetchAttendance]);
 
-  function recordFor(employeeId: string, d: string): Attendance | undefined {
-    return attendance.find((a) => a.employeeId === employeeId && a.date === d);
-  }
+  // Get employees for this branch
+  const branchEmployees = branchId
+    ? employees.filter((e) => e.branchId === branchId)
+    : employees;
 
-  // Roster for the selected date.
-  const roster = scopedEmployees.map((e) => ({ employee: e, record: recordFor(e.id, date) }));
-  const counts = {
-    present: roster.filter((r) => r.record?.status === "present").length,
-    absent: roster.filter((r) => r.record?.status === "absent").length,
-    halfDay: roster.filter((r) => r.record?.status === "half_day").length,
-    leave: roster.filter((r) => r.record?.status === "leave").length,
+  // Get today's attendance for a specific employee
+  const getTodayAttendance = (employeeId: string) => {
+    if (!attendance || attendance.length === 0) return null;
+    // Filter for this employee and date
+    const records = attendance
+      .filter(a => a.employeeId === employeeId)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    
+    return records.length > 0 ? records[0] : null;
   };
-  const workingCount = roster.filter((r) => r.record && r.record.status !== "week_off").length;
-  const attendancePct = workingCount ? Math.round(((counts.present + counts.halfDay * 0.5) / workingCount) * 100) : 0;
 
-  // Monthly summary across all seeded attendance (per scoped employee).
-  const monthly = scopedEmployees.map((e) => {
-    const recs = attendance.filter((a) => a.employeeId === e.id);
-    const working = recs.filter((r) => r.status !== "week_off").length;
-    const present = recs.filter((r) => r.status === "present").length;
-    const half = recs.filter((r) => r.status === "half_day").length;
-    const absent = recs.filter((r) => r.status === "absent").length;
-    const leave = recs.filter((r) => r.status === "leave").length;
-    const pct = working ? Math.round(((present + half * 0.5) / working) * 100) : 0;
-    return { employee: e, working, present, half, absent, leave, pct };
-  });
+  // Check if employee is currently logged in (last record is 'login')
+  const isEmployeeLoggedIn = (employeeId: string) => {
+    if (!attendance || attendance.length === 0) return false;
+    const records = attendance
+      .filter(a => a.employeeId === employeeId)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    
+    if (records.length === 0) return false;
+    return records[0].type === 'login';
+  };
 
-  function openDialog(employee: Employee) {
-    setDialogEmployee(employee);
-    setDialogOpen(true);
-  }
+  // Handle login/logout
+  const handleRecordAttendance = async (employee: Employee, type: 'login' | 'logout') => {
+    if (isSubmitting) return;
+    
+    // Check if trying to login while already logged in
+    if (type === 'login' && isEmployeeLoggedIn(employee.id)) {
+      toast.error(`${employee.name} is already logged in! Please logout first.`);
+      return;
+    }
 
-  function handleSubmit(values: AttendanceFormValues) {
-    if (!dialogEmployee) return;
-    const isWorking = values.status === "present" || values.status === "half_day";
-    const existing = recordFor(dialogEmployee.id, date);
-    upsertAttendance({
-      id: existing?.id ?? `att-local-${Date.now()}`,
-      employeeId: dialogEmployee.id,
-      branchId: dialogEmployee.branchId,
-      date,
-      status: values.status,
-      checkIn: isWorking ? values.checkIn : null,
-      checkOut: isWorking ? values.checkOut : null,
-      remarks: values.remarks || undefined,
-    });
-    toast.success(`Attendance saved for ${dialogEmployee.name}.`);
-    setDialogOpen(false);
+    // Check if trying to logout without logging in first
+    if (type === 'logout' && !isEmployeeLoggedIn(employee.id)) {
+      toast.error(`${employee.name} hasn't logged in today!`);
+      return;
+    }
+
+    try {
+      setIsSubmitting(employee.id);
+      const now = new Date();
+      
+      const response = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: employee.id,
+          branchId: employee.branchId,
+          type,
+          timestamp: now.toISOString(),
+          date: now.toISOString().split('T')[0],
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.code === 'ALREADY_LOGGED_IN') {
+          toast.error(data.error || 'Employee is already logged in!');
+          return;
+        }
+        throw new Error(data.error || 'Failed to record attendance');
+      }
+
+      toast.success(`${employee.name} ${type === 'login' ? 'logged in' : 'logged out'} successfully!`);
+      await fetchAttendance(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to record attendance:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to record attendance');
+    } finally {
+      setIsSubmitting(null);
+    }
+  };
+
+  // Calculate stats
+  const totalEmployees = branchEmployees.length;
+  const presentToday = attendance
+    ? attendance.filter((a) => a.type === 'login').length
+    : 0;
+  const loggedInNow = branchEmployees.filter((e) => isEmployeeLoggedIn(e.id)).length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-maroon" />
+        <span className="ml-2 text-muted-foreground">Loading attendance...</span>
+      </div>
+    );
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Attendance"
-        description="Daily staff attendance and monthly summary across branches."
+        description="Track employee attendance across branches"
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {!branchId && (
-              <Select value={branchFilter} onValueChange={setBranchFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Branches</SelectItem>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.location}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <Input type="date" value={date} max={ATTENDANCE_TODAY} onChange={(e) => setDate(e.target.value)} className="w-44" />
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-auto"
+            />
+            <Button
+              variant="outline"
+              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+            >
+              Today
+            </Button>
+            <Button
+              variant="outline"
+              onClick={fetchAttendance}
+              disabled={loading}
+            >
+              Refresh
+            </Button>
           </div>
         }
       />
 
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Present" value={String(counts.present)} icon={UserCheck} hint={`${attendancePct}% attendance`} />
-        <StatCard label="Absent" value={String(counts.absent)} icon={UserX} />
-        <StatCard label="Half Day" value={String(counts.halfDay)} icon={Coffee} />
-        <StatCard label="On Leave" value={String(counts.leave)} icon={CalendarClock} />
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
+            <User className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalEmployees}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Logged In Today</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{presentToday}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Currently Active</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{loggedInNow}</div>
+          </CardContent>
+        </Card>
       </div>
 
-      <Tabs defaultValue="roster">
-        <TabsList>
-          <TabsTrigger value="roster">Daily Roster</TabsTrigger>
-          <TabsTrigger value="monthly">Monthly Summary</TabsTrigger>
-        </TabsList>
+      {/* Attendance Table */}
+      <div className="rounded-2xl border border-border bg-card shadow-sm overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Employee</TableHead>
+              <TableHead>Branch</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Login Time</TableHead>
+              <TableHead>Logout Time</TableHead>
+              {canManage && <TableHead className="text-right">Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {branchEmployees.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  No employees found in this branch
+                </TableCell>
+              </TableRow>
+            ) : (
+              branchEmployees.map((employee) => {
+                const todayRecord = getTodayAttendance(employee.id);
+                const isLoggedIn = isEmployeeLoggedIn(employee.id);
+                const branch = branches.find((b) => b.id === employee.branchId);
+                const isSubmittingThis = isSubmitting === employee.id;
 
-        <TabsContent value="roster">
-          {roster.length === 0 ? (
-            <EmptyState icon={CalendarCheck} title="No staff to show" description="No employees match this branch." />
-          ) : (
-            <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Branch</TableHead>
-                    <TableHead>Check In</TableHead>
-                    <TableHead>Check Out</TableHead>
-                    <TableHead>Status</TableHead>
-                    {canManage && <TableHead className="text-right">Action</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {roster.map(({ employee, record }) => {
-                    const branch = branches.find((b) => b.id === employee.branchId);
-                    return (
-                      <TableRow key={employee.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-maroon text-xs font-semibold text-white">
-                              {initials(employee.name)}
-                            </span>
-                            <div>
-                              <p className="font-medium text-foreground">{employee.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {employee.employeeCode} · {ROLE_LABELS[employee.role]}
-                              </p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{branch?.location ?? "—"}</TableCell>
-                        <TableCell className="text-muted-foreground">{record?.checkIn ?? "—"}</TableCell>
-                        <TableCell className="text-muted-foreground">{record?.checkOut ?? "—"}</TableCell>
-                        <TableCell>
-                          {record ? <StatusBadge status={record.status} /> : <span className="text-xs text-muted-foreground">Not marked</span>}
-                        </TableCell>
-                        {canManage && (
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" onClick={() => openDialog(employee)}>
-                              <Pencil className="h-3.5 w-3.5" /> {record ? "Edit" : "Mark"}
-                            </Button>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="monthly">
-          <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Working Days</TableHead>
-                  <TableHead>Present</TableHead>
-                  <TableHead>Half Day</TableHead>
-                  <TableHead>Leave</TableHead>
-                  <TableHead>Absent</TableHead>
-                  <TableHead>Attendance %</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {monthly.map((m) => (
-                  <TableRow key={m.employee.id}>
-                    <TableCell className="font-medium text-foreground">{m.employee.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{m.working}</TableCell>
-                    <TableCell className="text-success">{m.present}</TableCell>
-                    <TableCell className="text-warning">{m.half}</TableCell>
-                    <TableCell className="text-violet-600">{m.leave}</TableCell>
-                    <TableCell className="text-destructive">{m.absent}</TableCell>
+                return (
+                  <TableRow key={employee.id}>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-secondary">
-                          <div
-                            className={m.pct >= 90 ? "h-full bg-success" : m.pct >= 75 ? "h-full bg-warning" : "h-full bg-destructive"}
-                            style={{ width: `${m.pct}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-medium text-foreground">{m.pct}%</span>
-                      </div>
+                      <p className="font-medium">{employee.name}</p>
+                      <p className="text-xs text-muted-foreground">{employee.employeeCode}</p>
                     </TableCell>
+                    <TableCell>{branch?.location || "—"}</TableCell>
+                    <TableCell>
+                      {isLoggedIn ? (
+                        <Badge className="bg-green-100 text-green-700 border-green-200">
+                          <span className="h-2 w-2 rounded-full bg-green-500 mr-1.5 inline-block animate-pulse" />
+                          Logged In
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-200">
+                          Offline
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {todayRecord?.type === 'login' && todayRecord.timestamp 
+                        ? formatTime(todayRecord.timestamp) 
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {todayRecord?.type === 'logout' && todayRecord.timestamp 
+                        ? formatTime(todayRecord.timestamp) 
+                        : "—"}
+                    </TableCell>
+                    {canManage && (
+                      <TableCell className="text-right">
+                        {!isLoggedIn ? (
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => handleRecordAttendance(employee, 'login')}
+                            disabled={isSubmittingThis}
+                          >
+                            {isSubmittingThis ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              'Log In'
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleRecordAttendance(employee, 'logout')}
+                            disabled={isSubmittingThis}
+                          >
+                            {isSubmittingThis ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              'Log Out'
+                            )}
+                          </Button>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      <MarkAttendanceDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        employee={dialogEmployee}
-        date={date}
-        existing={dialogEmployee ? recordFor(dialogEmployee.id, date) : undefined}
-        onSubmit={handleSubmit}
-      />
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

@@ -1,296 +1,467 @@
 /**
- * Seeds the database from the mock data layer in src/data, preserving the
- * mock IDs (br-001, emp-002, …) so seeded rows cross-reference correctly.
- * Run with: npm run db:seed (wipes and re-inserts everything).
+ * Seeds the database with mock data
+ * Run with: npm run db:seed
  */
 import "dotenv/config";
-import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { branches } from "../src/data/branches";
-import { users } from "../src/data/users";
-import { employees } from "../src/data/employees";
-import { customers } from "../src/data/customers";
-import { chitGroups } from "../src/data/chit-groups";
-import { chitMembers } from "../src/data/chit-members";
-import { payments } from "../src/data/payments";
-import { auctions } from "../src/data/auctions";
-import { templates } from "../src/data/templates";
-import { followUps } from "../src/data/followups";
-import { locationPings } from "../src/data/locations";
-import { expenses } from "../src/data/expenses";
-import { chitPlans } from "../src/data/chit-plans";
-import { attendance } from "../src/data/attendance";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
-const date = (s: string) => new Date(s);
-const dateOrNull = (s: string | null | undefined) => (s ? new Date(s) : null);
-
 async function main() {
-  // Delete in FK-dependency order.
-  await prisma.attendance.deleteMany();
-  await prisma.expense.deleteMany();
-  await prisma.receipt.deleteMany();
-  await prisma.locationPing.deleteMany();
-  await prisma.followUp.deleteMany();
-  await prisma.auction.deleteMany();
-  await prisma.payment.deleteMany();
-  await prisma.chitMember.deleteMany();
-  await prisma.chitGroup.deleteMany();
-  await prisma.chitPlan.deleteMany();
-  await prisma.customer.deleteMany();
-  await prisma.template.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.employee.deleteMany();
-  await prisma.branch.deleteMany();
+  console.log("🌱 Starting seeding...");
 
-  await prisma.branch.createMany({
-    data: branches.map((b) => ({
-      id: b.id,
-      name: b.name,
-      code: b.code,
-      location: b.location,
-      address: b.address,
-      managerName: b.managerName,
-      phone: b.phone,
-      email: b.email,
-      openingDate: date(b.openingDate),
-      status: b.status,
-      // totalCustomers / activeChitGroups / monthlyCollection / pendingAmount
-      // are derived aggregates — computed from relations, not stored.
-    })),
+  // Clean up existing data in correct order
+  console.log("🧹 Cleaning up existing data...");
+  
+  await prisma.followUp.deleteMany({});
+  await prisma.receipt.deleteMany({});
+  await prisma.payment.deleteMany({});
+  await prisma.auction.deleteMany({});
+  await prisma.chitMember.deleteMany({});
+  await prisma.chitGroup.deleteMany({});
+  await prisma.customer.deleteMany({});
+  await prisma.employee.deleteMany({});
+  await prisma.user.deleteMany({});
+  await prisma.branch.deleteMany({});
+
+  console.log("✅ Cleanup complete");
+
+  // 1. Create Branches
+  console.log("🏢 Creating branches...");
+  
+  const branch1 = await prisma.branch.create({
+    data: {
+      id: "br-001",
+      code: "BR001",
+      name: "Chennai Main Branch",
+      location: "Chennai Main",
+      address: "123 Anna Salai, Chennai - 600001",
+      managerName: "Ravi Kumar",  // ✅ REQUIRED
+      phone: "9876543210",
+      email: "chennai@shreevaari.com",  // ✅ REQUIRED
+      openingDate: new Date("2023-01-01"),  // ✅ REQUIRED
+      status: "active",
+    },
   });
 
-  await prisma.employee.createMany({
-    data: employees.map((e) => ({
-      id: e.id,
-      employeeCode: e.employeeCode,
-      name: e.name,
-      branchId: e.branchId,
-      role: e.role,
-      phone: e.phone,
-      email: e.email,
-      joiningDate: date(e.joiningDate),
-      salary: e.salary,
-      status: e.status,
-      collectionTarget: e.collectionTarget,
-      collectionAchieved: e.collectionAchieved,
-      avatarUrl: e.avatarUrl ?? null,
-      // assignedCustomerIds is modelled via Customer.assignedEmployeeId.
-    })),
+  const branch2 = await prisma.branch.create({
+    data: {
+      id: "br-002",
+      code: "BR002",
+      name: "Coimbatore Branch",
+      location: "Coimbatore",
+      address: "456 Race Course Road, Coimbatore - 641018",
+      managerName: "Priya Rajan",  // ✅ REQUIRED
+      phone: "9876543211",
+      email: "coimbatore@shreevaari.com",  // ✅ REQUIRED
+      openingDate: new Date("2023-06-01"),  // ✅ REQUIRED
+      status: "active",
+    },
   });
 
-  await prisma.user.createMany({
-    data: users.map((u) => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      phone: u.phone,
-      role: u.role,
-      branchId: u.branchId,
-      avatarUrl: u.avatarUrl ?? null,
-      status: u.status,
-    })),
+  console.log(`✅ Created ${2} branches`);
+
+  // 2. Create Employees
+  console.log("👨‍💼 Creating employees...");
+
+  const emp1 = await prisma.employee.create({
+    data: {
+      id: "emp-001",
+      employeeCode: "EMP001",
+      name: "Ramesh Kumar",
+      phone: "9876543212",
+      email: "ramesh@shreevaari.com",
+      role: "collection_employee",
+      branchId: branch1.id,
+      joiningDate: new Date("2024-01-01"),
+      salary: 25000,  // ✅ REQUIRED
+      status: "active",
+      collectionTarget: 100000,
+      collectionAchieved: 0,
+      isLoggedIn: false,
+    },
   });
 
-  await prisma.customer.createMany({
-    data: customers.map((c) => ({
-      id: c.id,
-      customerCode: c.customerCode,
-      passbookNumber: c.passbookNumber,
-      name: c.name,
-      branchId: c.branchId,
-      phone: c.phone,
-      alternatePhone: c.alternatePhone ?? null,
-      address: c.address,
-      aadhaarNumber: c.aadhaarNumber,
-      panNumber: c.panNumber,
-      occupation: c.occupation,
-      monthlyIncome: c.monthlyIncome,
-      nomineeName: c.nomineeName,
-      nomineePhone: c.nomineePhone,
-      joinedDate: date(c.joinedDate),
-      status: c.status,
-      assignedEmployeeId: c.assignedEmployeeId,
-      avatarUrl: c.avatarUrl ?? null,
-    })),
+  const emp2 = await prisma.employee.create({
+    data: {
+      id: "emp-002",
+      employeeCode: "EMP002",
+      name: "Suresh Kumar",
+      phone: "9876543213",
+      email: "suresh@shreevaari.com",
+      role: "collection_employee",
+      branchId: branch1.id,
+      joiningDate: new Date("2024-01-15"),
+      salary: 25000,  // ✅ REQUIRED
+      status: "active",
+      collectionTarget: 80000,
+      collectionAchieved: 0,
+      isLoggedIn: false,
+    },
   });
 
-  await prisma.chitGroup.createMany({
-    data: chitGroups.map((g) => ({
-      id: g.id,
-      groupName: g.groupName,
-      groupCode: g.groupCode,
-      branchId: g.branchId,
-      chitPlanId: g.chitPlanId ?? null,
-      chitValue: g.chitValue,
-      installmentAmount: g.monthlyInstallment,
-      collectionFrequency: g.collectionFrequency,
-      durationMonths: g.durationMonths,
-      totalMembers: g.totalMembers,
-      // currentMembers is derived from the members relation.
-      startDate: date(g.startDate),
-      endDate: date(g.endDate),
-      auctionDate: date(g.auctionDate),
-      status: g.status,
-      commissionPercentage: g.commissionPercentage,
-      foremanCommission: g.foremanCommission,
-      collectionEmployeeId: g.collectionEmployeeId,
-    })),
+  const emp3 = await prisma.employee.create({
+    data: {
+      id: "emp-003",
+      employeeCode: "EMP003",
+      name: "Priya Rajan",
+      phone: "9876543214",
+      email: "priya@shreevaari.com",
+      role: "branch_admin",
+      branchId: branch2.id,
+      joiningDate: new Date("2024-02-01"),
+      salary: 35000,  // ✅ REQUIRED
+      status: "active",
+      collectionTarget: 0,
+      collectionAchieved: 0,
+      isLoggedIn: false,
+    },
   });
 
-  await prisma.chitMember.createMany({
-    data: chitMembers.map((m) => ({
-      id: m.id,
-      chitGroupId: m.chitGroupId,
-      customerId: m.customerId,
-      agreementNo: m.agreementNo,
-      joinedDate: date(m.joinedDate),
-      entryPeriod: m.entryPeriod,
-      hasWon: m.hasWon,
-      wonMonth: m.wonMonth ?? null,
-      wonAmount: m.wonAmount ?? null,
-      status: m.status,
-    })),
+  console.log(`✅ Created ${3} employees`);
+
+  // 3. Create Users
+  console.log("👤 Creating users...");
+
+  await prisma.user.create({
+    data: {
+      id: "user-001",
+      name: "Admin User",
+      email: "admin@shreevaari.com",
+      phone: "9876543000",  // ✅ REQUIRED
+      role: "main_admin",
+      branchId: branch1.id,
+      status: "active",
+    },
   });
 
-  await prisma.payment.createMany({
-    data: payments.map((p) => ({
-      id: p.id,
-      paymentCode: p.paymentCode,
-      customerId: p.customerId,
-      branchId: p.branchId,
-      chitGroupId: p.chitGroupId,
-      month: p.month,
-      dueAmount: p.dueAmount,
-      paidAmount: p.paidAmount,
-      paymentDate: dateOrNull(p.paymentDate),
-      paymentMode: p.paymentMode,
-      paymentCategory: p.paymentCategory,
-      receiptNumber: p.receiptNumber,
-      billNumber: p.billNumber,
-      collectedById: p.collectedBy,
-      status: p.status,
-      remarks: p.remarks ?? null,
-    })),
+  await prisma.user.create({
+    data: {
+      id: "user-002",
+      name: "Ramesh Kumar",
+      email: "ramesh@shreevaari.com",
+      phone: "9876543212",  // ✅ REQUIRED
+      role: "collection_employee",
+      branchId: branch1.id,
+      status: "active",
+    },
   });
 
-  // One Receipt row per payment that actually produced a receipt.
-  await prisma.receipt.createMany({
-    data: payments
-      .filter((p) => p.receiptNumber && p.paymentDate && p.paymentMode && p.collectedBy)
-      .map((p) => ({
-        receiptNumber: p.receiptNumber!,
-        paymentId: p.id,
-        customerId: p.customerId,
-        amount: p.paidAmount,
-        date: date(p.paymentDate!),
-        mode: p.paymentMode!,
-        issuedById: p.collectedBy!,
-      })),
+  console.log(`✅ Created ${2} users`);
+
+  // 4. Create Customers
+  console.log("👤 Creating customers...");
+
+  const cust1 = await prisma.customer.create({
+    data: {
+      id: "cust-001",
+      customerCode: "CUST001",
+      name: "Mohan Raj",
+      phone: "9876543215",
+      alternatePhone: "9876543216",
+      address: "789 Gandhi Street, Chennai",
+      aadhaarNumber: "123456789012",
+      panNumber: "ABCDE1234F",
+      occupation: "Business",
+      monthlyIncome: 50000,
+      nomineeName: "Sita Raj",
+      nomineePhone: "9876543217",
+      branchId: branch1.id,
+      joinedDate: new Date("2024-01-01"),
+      status: "active",
+      assignedEmployeeId: emp1.id,
+    },
   });
 
-  await prisma.auction.createMany({
-    data: auctions.map((a) => ({
-      id: a.id,
-      chitGroupId: a.chitGroupId,
-      month: a.month,
-      auctionDate: date(a.auctionDate),
-      winnerCustomerId: a.winnerCustomerId,
-      bidAmount: a.bidAmount,
-      discountAmount: a.discountAmount,
-      dividendPerMember: a.dividendPerMember,
-      status: a.status,
-    })),
+  const cust2 = await prisma.customer.create({
+    data: {
+      id: "cust-002",
+      customerCode: "CUST002",
+      name: "Priya Sharma",
+      phone: "9876543218",
+      alternatePhone: "9876543219",
+      address: "101 Nehru Street, Coimbatore",
+      aadhaarNumber: "567890123456",
+      panNumber: "FGHIJ5678K",
+      occupation: "Teacher",
+      monthlyIncome: 30000,
+      nomineeName: "Rahul Sharma",
+      nomineePhone: "9876543220",
+      branchId: branch2.id,
+      joinedDate: new Date("2024-01-15"),
+      status: "active",
+      assignedEmployeeId: emp3.id,
+    },
   });
 
-  await prisma.template.createMany({
-    data: templates.map((t) => ({
-      id: t.id,
-      name: t.name,
-      type: t.type,
-      content: t.content,
-      variables: t.variables,
-      createdAt: date(t.createdAt),
-      updatedAt: date(t.updatedAt),
-    })),
+  const cust3 = await prisma.customer.create({
+    data: {
+      id: "cust-003",
+      customerCode: "CUST003",
+      name: "Karthik Kumar",
+      phone: "9876543221",
+      alternatePhone: null,
+      address: "222 Market Street, Chennai",
+      aadhaarNumber: "901234567890",
+      panNumber: "KLMNO9012P",
+      occupation: "Doctor",
+      monthlyIncome: 80000,
+      nomineeName: "Lakshmi Kumar",
+      nomineePhone: "9876543222",
+      branchId: branch1.id,
+      joinedDate: new Date("2024-02-01"),
+      status: "active",
+      assignedEmployeeId: emp2.id,
+    },
   });
 
-  await prisma.followUp.createMany({
-    data: followUps.map((f) => ({
-      id: f.id,
-      customerId: f.customerId,
-      employeeId: f.employeeId,
-      branchId: f.branchId,
-      note: f.note,
-      status: f.status,
-      lastContactedDate: dateOrNull(f.lastContactedDate),
-      nextFollowUpDate: dateOrNull(f.nextFollowUpDate),
-      promiseToPayDate: dateOrNull(f.promiseToPayDate),
-      createdAt: date(f.createdAt),
-    })),
+  console.log(`✅ Created ${3} customers`);
+
+  // 5. Create Chit Groups
+  console.log("📊 Creating chit groups...");
+
+  const chitGroup1 = await prisma.chitGroup.create({
+    data: {
+      id: "chit-001",
+      groupName: "Silver Jubilee Chit",
+      groupCode: "SJC001",
+      branchId: branch1.id,
+      chitValue: 500000,
+      monthlyInstallment: 50000,
+      collectionFrequency: "monthly",
+      durationMonths: 10,
+      currentMembers: 10,
+      startDate: new Date("2024-01-01"),
+      endDate: new Date("2024-12-01"),
+      status: "active",
+      foremanCommission: 5000,
+      planImage: null,
+    },
   });
 
-  await prisma.locationPing.createMany({
-    data: locationPings.map((l) => ({
-      id: l.id,
-      employeeId: l.employeeId,
-      branchId: l.branchId,
-      lat: l.lat,
-      lng: l.lng,
-      address: l.address,
-      timestamp: date(l.timestamp),
-      status: l.status,
-    })),
+  const chitGroup2 = await prisma.chitGroup.create({
+    data: {
+      id: "chit-002",
+      groupName: "Gold Standard Chit",
+      groupCode: "GSC001",
+      branchId: branch2.id,
+      chitValue: 1000000,
+      monthlyInstallment: 50000,
+      collectionFrequency: "monthly",
+      durationMonths: 20,
+      currentMembers: 20,
+      startDate: new Date("2024-01-15"),
+      endDate: new Date("2024-12-15"),
+      status: "active",
+      foremanCommission: 10000,
+      planImage: null,
+    },
   });
 
-  await prisma.expense.createMany({
-    data: expenses.map((e) => ({
-      id: e.id,
-      expenseCode: e.expenseCode,
-      branchId: e.branchId,
-      category: e.category,
-      title: e.title,
-      amount: e.amount,
-      date: date(e.date),
-      paidTo: e.paidTo,
-      paymentMode: e.paymentMode,
-      recordedById: e.recordedBy,
-      billNumber: e.billNumber ?? null,
-      remarks: e.remarks ?? null,
-    })),
+  console.log(`✅ Created ${2} chit groups`);
+
+  // 6. Create Chit Members
+  console.log("📝 Creating chit members...");
+
+  await prisma.chitMember.create({
+    data: {
+      id: "cm-001",
+      chitGroupId: chitGroup1.id,
+      customerId: cust1.id,
+      agreementNo: "AGR001",
+      joinedDate: new Date("2024-01-01"),
+      entryPeriod: 1,
+      hasWon: false,
+      wonMonth: null,
+      wonAmount: null,
+      status: "active",
+    },
   });
 
-  await prisma.chitPlan.createMany({
-    data: chitPlans.map((p) => ({
-      id: p.id,
-      chitValue: p.chitValue,
-      frequency: p.frequency,
-      periods: p.periods,
-      durationLabel: p.durationLabel,
-      members: p.members,
-      totalPayable: p.totalPayable,
-      dailyApprox: p.dailyApprox ?? null,
-      weeklyApprox: p.weeklyApprox ?? null,
-      featured: p.featured ?? false,
-      schedule: p.schedule as unknown as Prisma.InputJsonValue,
-    })),
+  await prisma.chitMember.create({
+    data: {
+      id: "cm-002",
+      chitGroupId: chitGroup1.id,
+      customerId: cust3.id,
+      agreementNo: "AGR002",
+      joinedDate: new Date("2024-02-01"),
+      entryPeriod: 1,
+      hasWon: false,
+      wonMonth: null,
+      wonAmount: null,
+      status: "active",
+    },
   });
 
-  await prisma.attendance.createMany({
-    data: attendance.map((a) => ({
-      id: a.id,
-      employeeId: a.employeeId,
-      branchId: a.branchId,
-      date: date(a.date),
-      status: a.status,
-      checkIn: a.checkIn,
-      checkOut: a.checkOut,
-      remarks: a.remarks ?? null,
-    })),
+  await prisma.chitMember.create({
+    data: {
+      id: "cm-003",
+      chitGroupId: chitGroup2.id,
+      customerId: cust2.id,
+      agreementNo: "AGR003",
+      joinedDate: new Date("2024-01-15"),
+      entryPeriod: 1,
+      hasWon: false,
+      wonMonth: null,
+      wonAmount: null,
+      status: "active",
+    },
   });
 
+  console.log(`✅ Created ${3} chit members`);
+
+  // 7. Create Payments
+  console.log("💰 Creating payments...");
+
+  const chitMember1 = await prisma.chitMember.findFirst({
+    where: { customerId: cust1.id },
+  });
+
+  const chitMember2 = await prisma.chitMember.findFirst({
+    where: { customerId: cust2.id },
+  });
+
+  if (chitMember1) {
+    await prisma.payment.create({
+      data: {
+        id: "pay-001",
+        paymentCode: "PAY001",
+        customerId: cust1.id,
+        branchId: branch1.id,
+        chitGroupId: chitGroup1.id,
+        month: "January 2024",
+        dueAmount: 50000,
+        paidAmount: 50000,
+        paymentDate: new Date("2024-01-01"),
+        paymentMode: "cash",
+        paymentCategory: "installment",
+        receiptNumber: "REC-001",
+        billNumber: null,
+        collectedById: emp1.id,
+        status: "paid",
+        remarks: "First installment paid",
+      },
+    });
+  }
+
+  if (chitMember2) {
+    await prisma.payment.create({
+      data: {
+        id: "pay-002",
+        paymentCode: "PAY002",
+        customerId: cust2.id,
+        branchId: branch2.id,
+        chitGroupId: chitGroup2.id,
+        month: "January 2024",
+        dueAmount: 50000,
+        paidAmount: 0,
+        paymentDate: null,
+        paymentMode: "bank_transfer",
+        paymentCategory: "installment",
+        receiptNumber: null,
+        billNumber: null,
+        collectedById: emp3.id,
+        status: "pending",
+        remarks: "Awaiting payment",
+      },
+    });
+  }
+
+  console.log(`✅ Created ${2} payments`);
+
+  // 8. Create Auctions
+  console.log("🔨 Creating auctions...");
+
+  await prisma.auction.create({
+    data: {
+      id: "auc-001",
+      chitGroupId: chitGroup1.id,
+      month: 1,
+      auctionDate: new Date("2024-01-15"),
+      winnerCustomerId: cust1.id,
+      bidAmount: 45000,
+      discountAmount: 5000,
+      dividendPerMember: 4500,
+      status: "completed",
+    },
+  });
+
+  await prisma.auction.create({
+    data: {
+      id: "auc-002",
+      chitGroupId: chitGroup1.id,
+      month: 2,
+      auctionDate: new Date("2024-02-15"),
+      winnerCustomerId: null,
+      bidAmount: 43000,
+      discountAmount: 7000,
+      dividendPerMember: 4300,
+      status: "scheduled",
+    },
+  });
+
+  console.log(`✅ Created ${2} auctions`);
+
+  // 9. Create Follow-ups
+  console.log("📞 Creating follow-ups...");
+
+  await prisma.followUp.create({
+    data: {
+      id: "fu-001",
+      customerId: cust2.id,
+      employeeId: emp3.id,
+      branchId: branch2.id,
+      note: "Customer needs to be reminded about payment",
+      status: "follow_up",
+      lastContactedDate: new Date("2024-01-20"),
+      nextFollowUpDate: new Date("2024-02-01"),
+      promiseToPayDate: null,
+    },
+  });
+
+  await prisma.followUp.create({
+    data: {
+      id: "fu-002",
+      customerId: cust1.id,
+      employeeId: emp1.id,
+      branchId: branch1.id,
+      note: "Follow up on new chit offer",
+      status: "paid",
+      lastContactedDate: new Date("2024-01-25"),
+      nextFollowUpDate: null,
+      promiseToPayDate: null,
+    },
+  });
+
+  console.log(`✅ Created ${2} follow-ups`);
+
+  // 10. Create Receipts
+  console.log("🧾 Creating receipts...");
+
+  const payment1 = await prisma.payment.findFirst({
+    where: { paymentCode: "PAY001" },
+  });
+
+  if (payment1) {
+    await prisma.receipt.create({
+      data: {
+        id: "rec-001",
+        receiptNumber: "REC-001",
+        paymentId: payment1.id,
+        customerId: cust1.id,
+        amount: 50000,
+        date: new Date("2024-01-01"),
+        mode: "cash",
+        issuedById: emp1.id,
+      },
+    });
+  }
+
+  console.log(`✅ Created ${1} receipts`);
+
+  // Final counts
   const counts = {
     branches: await prisma.branch.count(),
     users: await prisma.user.count(),
@@ -301,19 +472,16 @@ async function main() {
     payments: await prisma.payment.count(),
     receipts: await prisma.receipt.count(),
     auctions: await prisma.auction.count(),
-    templates: await prisma.template.count(),
     followUps: await prisma.followUp.count(),
-    locationPings: await prisma.locationPing.count(),
-    expenses: await prisma.expense.count(),
-    chitPlans: await prisma.chitPlan.count(),
-    attendance: await prisma.attendance.count(),
   };
-  console.log("Seeded:", counts);
+
+  console.log("\n📊 Final Counts:", counts);
+  console.log("✅ Database seeded successfully!");
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error("❌ Seeding failed:", e);
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());

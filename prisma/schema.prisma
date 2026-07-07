@@ -16,7 +16,6 @@ enum UserRole {
   collection_employee
   accountant
   viewer
-  customer
 }
 
 enum Status {
@@ -94,14 +93,6 @@ enum LocationStatus {
   idle
 }
 
-enum AttendanceStatus {
-  present
-  absent
-  half_day
-  leave
-  week_off
-}
-
 enum ExpenseCategory {
   salary
   rent
@@ -116,15 +107,14 @@ enum ExpenseCategory {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  name        String
-  email       String   @unique
-  phone       String
-  role        UserRole
-  branchId    String?  @map("branch_id")
-  avatarUrl   String?  @map("avatar_url")
-  status      Status   @default(active)
-  firebaseUid String?  @unique @map("firebase_uid")
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String
+  role      UserRole
+  branchId  String?  @map("branch_id")
+  avatarUrl String?  @map("avatar_url")
+  status    Status   @default(active)
 
   branch Branch? @relation(fields: [branchId], references: [id])
 
@@ -151,7 +141,7 @@ model Branch {
   followUps     FollowUp[]
   locationPings LocationPing[]
   expenses      Expense[]
-  attendance    Attendance[]
+  attendance    EmployeeAttendance[]  // ← ADD THIS
 
   @@map("branches")
 }
@@ -170,16 +160,20 @@ model Employee {
   collectionTarget   Decimal      @default(0) @map("collection_target") @db.Decimal(12, 2)
   collectionAchieved Decimal      @default(0) @map("collection_achieved") @db.Decimal(12, 2)
   avatarUrl          String?      @map("avatar_url")
+  loginTime          DateTime?    @map("login_time")
+  logoutTime         DateTime?    @map("logout_time")
+  currentSessionId   String?      @map("current_session_id")
+  isLoggedIn         Boolean      @default(false) @map("is_logged_in")
+  lastActivityAt     DateTime?    @map("last_activity_at")
 
   branch            Branch         @relation(fields: [branchId], references: [id])
   assignedCustomers Customer[]     @relation("EmployeeCustomers")
   collectedPayments Payment[]      @relation("CollectedPayments")
-  chitGroups        ChitGroup[]
   followUps         FollowUp[]
   receiptsIssued    Receipt[]
   locationPings     LocationPing[]
   expensesRecorded  Expense[]
-  attendance        Attendance[]
+  attendance        EmployeeAttendance[]
 
   @@index([branchId])
   @@map("employees")
@@ -188,7 +182,6 @@ model Employee {
 model Customer {
   id                 String   @id @default(cuid())
   customerCode       String   @unique @map("customer_code")
-  passbookNumber     String   @unique @map("passbook_number")
   name               String
   branchId           String   @map("branch_id")
   phone              String
@@ -204,6 +197,9 @@ model Customer {
   status             Status   @default(active)
   assignedEmployeeId String?  @map("assigned_employee_id")
   avatarUrl          String?  @map("avatar_url")
+
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt DateTime? @map("updated_at") // Make it optional
 
   branch           Branch       @relation(fields: [branchId], references: [id])
   assignedEmployee Employee?    @relation("EmployeeCustomers", fields: [assignedEmployeeId], references: [id])
@@ -223,25 +219,18 @@ model ChitGroup {
   groupName            String              @map("group_name")
   groupCode            String              @unique @map("group_code")
   branchId             String              @map("branch_id")
-  chitPlanId           String?             @map("chit_plan_id")
   chitValue            Decimal             @map("chit_value") @db.Decimal(14, 2)
-  // Installment amount per collection period (day/week/month depending on frequency).
-  installmentAmount    Decimal             @map("installment_amount") @db.Decimal(12, 2)
+  monthlyInstallment   Decimal             @map("monthly_installment") @db.Decimal(12, 2)
   collectionFrequency  CollectionFrequency @default(monthly) @map("collection_frequency")
   durationMonths       Int                 @map("duration_months")
-  // Planned capacity — extendable: adding members beyond this bumps it up.
-  totalMembers         Int                 @map("total_members")
+  currentMembers       Int                 @map("current_members") @default(0)
   startDate            DateTime            @map("start_date") @db.Date
   endDate              DateTime            @map("end_date") @db.Date
-  auctionDate          DateTime            @map("auction_date") @db.Date
   status               ChitGroupStatus     @default(pending)
-  commissionPercentage Decimal             @map("commission_percentage") @db.Decimal(5, 2)
-  foremanCommission    Decimal             @map("foreman_commission") @db.Decimal(12, 2)
-  collectionEmployeeId String?             @map("collection_employee_id")
+  foremanCommission    Decimal             @default(0) @map("foreman_commission") @db.Decimal(12, 2)
+  planImage            String?             @map("plan_image")
 
   branch             Branch       @relation(fields: [branchId], references: [id])
-  collectionEmployee Employee?    @relation(fields: [collectionEmployeeId], references: [id])
-  chitPlan           ChitPlan?    @relation(fields: [chitPlanId], references: [id])
   members            ChitMember[]
   payments           Payment[]
   auctions           Auction[]
@@ -256,7 +245,6 @@ model ChitMember {
   customerId  String   @map("customer_id")
   agreementNo String   @map("agreement_no")
   joinedDate  DateTime @map("joined_date") @db.Date
-  // Collection period the member entered at (members can join mid-cycle).
   entryPeriod Int      @default(1) @map("entry_period")
   hasWon      Boolean  @default(false) @map("has_won")
   wonMonth    Int?     @map("won_month")
@@ -277,7 +265,6 @@ model Payment {
   customerId      String          @map("customer_id")
   branchId        String          @map("branch_id")
   chitGroupId     String          @map("chit_group_id")
-  // Billing period bucket, e.g. "2026-06".
   month           String
   dueAmount       Decimal         @map("due_amount") @db.Decimal(12, 2)
   paidAmount      Decimal         @default(0) @map("paid_amount") @db.Decimal(12, 2)
@@ -370,7 +357,6 @@ model FollowUp {
   @@map("follow_ups")
 }
 
-// GPS ping reported by the employee mobile app while on collection rounds.
 model LocationPing {
   id         String         @id @default(cuid())
   employeeId String         @map("employee_id")
@@ -410,8 +396,6 @@ model Expense {
   @@map("expenses")
 }
 
-// Published chit scheme (calculation chart). The per-period installment/payout
-// schedule is stored as JSON since it is read-only reference data.
 model ChitPlan {
   id            String              @id @default(cuid())
   chitValue     Decimal             @map("chit_value") @db.Decimal(14, 2)
@@ -425,25 +409,22 @@ model ChitPlan {
   featured      Boolean             @default(false)
   schedule      Json
 
-  groups ChitGroup[]
-
   @@map("chit_plans")
 }
 
-model Attendance {
-  id         String           @id @default(cuid())
-  employeeId String           @map("employee_id")
-  branchId   String           @map("branch_id")
-  date       DateTime         @db.Date
-  status     AttendanceStatus
-  checkIn    String?          @map("check_in") // "HH:MM"
-  checkOut   String?          @map("check_out")
-  remarks    String?
+model EmployeeAttendance {
+  id         String   @id @default(cuid())
+  employeeId String   @map("employee_id")
+  branchId   String   @map("branch_id")
+  type       String   // "login" or "logout"
+  timestamp  DateTime @default(now())
+  date       DateTime @map("date") @db.Date
+  createdAt  DateTime @default(now()) @map("created_at")
 
-  employee Employee @relation(fields: [employeeId], references: [id])
-  branch   Branch   @relation(fields: [branchId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
-  @@unique([employeeId, date])
-  @@index([branchId, date])
-  @@map("attendance")
+  @@index([employeeId, date])
+  @@index([timestamp])
+  @@map("employee_attendance")
 }

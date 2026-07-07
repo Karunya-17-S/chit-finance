@@ -77,3 +77,18 @@ export function initials(name: string): string {
     .map((p) => p[0]?.toUpperCase())
     .join("");
 }
+
+/**
+ * Format a time string to readable format (e.g., "02:30:45 PM")
+ */
+
+export function formatTime(date: string | Date | null | undefined): string {
+  if (!date) return '—';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}

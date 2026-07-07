@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import {
   Dialog,
   DialogContent,
@@ -13,38 +14,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { chitPlans } from "@/data";
-import { formatValueLabel } from "@/lib/format";
-import type { Branch, ChitGroup, ChitGroupStatus, CollectionFrequency, Employee } from "@/types";
+import { Upload, X } from "lucide-react";
+import type { Branch, ChitGroup, ChitGroupStatus } from "@/types";
 
 export interface ChitGroupFormValues {
   groupName: string;
   branchId: string;
-  chitPlanId: string;
   chitValue: number;
-  collectionFrequency: CollectionFrequency;
   durationMonths: number;
-  totalMembers: number;
+  currentMembers: number;
   startDate: string;
-  auctionDate: string;
   status: ChitGroupStatus;
-  commissionPercentage: number;
-  collectionEmployeeId: string;
+  planImage?: string;
 }
 
 const EMPTY = (defaultBranchId: string): ChitGroupFormValues => ({
   groupName: "",
   branchId: defaultBranchId,
-  chitPlanId: "",
   chitValue: 100000,
-  collectionFrequency: "monthly",
   durationMonths: 20,
-  totalMembers: 20,
+  currentMembers: 0,
   startDate: "",
-  auctionDate: "",
   status: "pending",
-  commissionPercentage: 5,
-  collectionEmployeeId: "",
+  planImage: "",
 });
 
 interface ChitGroupFormDialogProps {
@@ -52,14 +44,21 @@ interface ChitGroupFormDialogProps {
   onOpenChange: (open: boolean) => void;
   group?: ChitGroup;
   branches: Branch[];
-  employees: Employee[];
   lockBranchId?: string;
   onSubmit: (values: ChitGroupFormValues) => void;
 }
 
-export function ChitGroupFormDialog({ open, onOpenChange, group, branches, employees, lockBranchId, onSubmit }: ChitGroupFormDialogProps) {
+export function ChitGroupFormDialog({ 
+  open, 
+  onOpenChange, 
+  group, 
+  branches, 
+  lockBranchId, 
+  onSubmit 
+}: ChitGroupFormDialogProps) {
   const [values, setValues] = React.useState<ChitGroupFormValues>(EMPTY(lockBranchId ?? branches[0]?.id ?? ""));
   const [wasOpen, setWasOpen] = React.useState(open);
+  const [imagePreview, setImagePreview] = React.useState<string | null>(null);
 
   if (open !== wasOpen) {
     setWasOpen(open);
@@ -69,19 +68,16 @@ export function ChitGroupFormDialog({ open, onOpenChange, group, branches, emplo
           ? {
               groupName: group.groupName,
               branchId: group.branchId,
-              chitPlanId: group.chitPlanId ?? "",
               chitValue: group.chitValue,
-              collectionFrequency: group.collectionFrequency,
               durationMonths: group.durationMonths,
-              totalMembers: group.totalMembers,
+              currentMembers: group.currentMembers,
               startDate: group.startDate,
-              auctionDate: group.auctionDate,
               status: group.status,
-              commissionPercentage: group.commissionPercentage,
-              collectionEmployeeId: group.collectionEmployeeId ?? "",
+              planImage: group.planImage || "",
             }
           : EMPTY(lockBranchId ?? branches[0]?.id ?? "")
       );
+      setImagePreview(group?.planImage || null);
     }
   }
 
@@ -89,16 +85,36 @@ export function ChitGroupFormDialog({ open, onOpenChange, group, branches, emplo
     setValues((v) => ({ ...v, [key]: value }));
   }
 
-  const branchEmployees = employees.filter((e) => e.branchId === values.branchId && e.role === "collection_employee");
-
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     onSubmit(values);
   }
 
+  // Handle image upload
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setValues((v) => ({ ...v, planImage: base64String }));
+        setImagePreview(base64String);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  // Remove image
+  function removeImage() {
+    setValues((v) => ({ ...v, planImage: "" }));
+    setImagePreview(null);
+    const fileInput = document.getElementById('planImage') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{group ? "Edit Chit Group" : "Create Chit Group"}</DialogTitle>
           <DialogDescription>
@@ -108,45 +124,16 @@ export function ChitGroupFormDialog({ open, onOpenChange, group, branches, emplo
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="chitPlan">Base on Chit Plan (optional)</Label>
-              <Select
-                value={values.chitPlanId || "none"}
-                onValueChange={(v) => {
-                  if (v === "none") {
-                    set("chitPlanId", "");
-                    return;
-                  }
-                  const plan = chitPlans.find((p) => p.id === v);
-                  if (!plan) return;
-                  // Prefill the group's terms from the selected published plan.
-                  setValues((prev) => ({
-                    ...prev,
-                    chitPlanId: plan.id,
-                    chitValue: plan.chitValue,
-                    collectionFrequency: plan.frequency,
-                    durationMonths: plan.frequency === "monthly" ? plan.periods : prev.durationMonths,
-                    totalMembers: plan.members ?? prev.totalMembers,
-                  }));
-                }}
-              >
-                <SelectTrigger id="chitPlan" className="w-full">
-                  <SelectValue placeholder="Custom terms (no plan)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Custom terms (no plan)</SelectItem>
-                  {chitPlans.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {formatValueLabel(p.chitValue)} · {p.durationLabel}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Selecting a plan fills the value, frequency and duration below.</p>
+              <Label htmlFor="groupName">Chit Name</Label>
+              <Input 
+                id="groupName" 
+                required 
+                value={values.groupName} 
+                onChange={(e) => set("groupName", e.target.value)} 
+                placeholder="Enter chit group name"
+              />
             </div>
-            <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="groupName">Group Name</Label>
-              <Input id="groupName" required value={values.groupName} onChange={(e) => set("groupName", e.target.value)} />
-            </div>
+            
             <div className="space-y-1.5">
               <Label htmlFor="branch">Branch</Label>
               <Select value={values.branchId} onValueChange={(v) => set("branchId", v)} disabled={!!lockBranchId}>
@@ -162,23 +149,19 @@ export function ChitGroupFormDialog({ open, onOpenChange, group, branches, emplo
                 </SelectContent>
               </Select>
             </div>
+            
             <div className="space-y-1.5">
               <Label htmlFor="chitValue">Chit Value (₹)</Label>
-              <Input id="chitValue" type="number" min={1} required value={values.chitValue} onChange={(e) => set("chitValue", Number(e.target.value))} />
+              <Input 
+                id="chitValue" 
+                type="number" 
+                min={1} 
+                required 
+                value={values.chitValue} 
+                onChange={(e) => set("chitValue", Number(e.target.value))} 
+              />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="collectionFrequency">Collection Frequency</Label>
-              <Select value={values.collectionFrequency} onValueChange={(v) => set("collectionFrequency", v as CollectionFrequency)}>
-                <SelectTrigger id="collectionFrequency" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            
             <div className="space-y-1.5">
               <Label htmlFor="durationMonths">Duration (months)</Label>
               <Input
@@ -190,37 +173,31 @@ export function ChitGroupFormDialog({ open, onOpenChange, group, branches, emplo
                 onChange={(e) => set("durationMonths", Number(e.target.value))}
               />
             </div>
+            
             <div className="space-y-1.5">
-              <Label htmlFor="totalMembers">Total Members</Label>
+              <Label htmlFor="currentMembers">Number of Members</Label>
               <Input
-                id="totalMembers"
-                type="number"
-                min={1}
-                required
-                value={values.totalMembers}
-                onChange={(e) => set("totalMembers", Number(e.target.value))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="startDate">Start Date</Label>
-              <Input id="startDate" type="date" required value={values.startDate} onChange={(e) => set("startDate", e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="auctionDate">Next Auction Date</Label>
-              <Input id="auctionDate" type="date" required value={values.auctionDate} onChange={(e) => set("auctionDate", e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="commissionPercentage">Commission (%)</Label>
-              <Input
-                id="commissionPercentage"
+                id="currentMembers"
                 type="number"
                 min={0}
-                max={100}
                 required
-                value={values.commissionPercentage}
-                onChange={(e) => set("commissionPercentage", Number(e.target.value))}
+                value={values.currentMembers}
+                onChange={(e) => set("currentMembers", Number(e.target.value))}
+                placeholder="Enter current member count"
               />
             </div>
+            
+            <div className="space-y-1.5">
+              <Label htmlFor="startDate">Start Date</Label>
+              <Input 
+                id="startDate" 
+                type="date" 
+                required 
+                value={values.startDate} 
+                onChange={(e) => set("startDate", e.target.value)} 
+              />
+            </div>
+            
             <div className="space-y-1.5">
               <Label htmlFor="status">Status</Label>
               <Select value={values.status} onValueChange={(v) => set("status", v as ChitGroupStatus)}>
@@ -234,22 +211,66 @@ export function ChitGroupFormDialog({ open, onOpenChange, group, branches, emplo
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Plan Picture Upload - Full width */}
             <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="collectionEmployeeId">Collection Employee</Label>
-              <Select value={values.collectionEmployeeId} onValueChange={(v) => set("collectionEmployeeId", v)}>
-                <SelectTrigger id="collectionEmployeeId" className="w-full">
-                  <SelectValue placeholder="Select employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {branchEmployees.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Plan Picture</Label>
+              <div className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-4 hover:border-maroon transition-colors">
+                {imagePreview ? (
+                  <div className="relative w-full">
+                    <div className="relative w-full max-h-[200px] overflow-hidden rounded-lg">
+                      <Image
+                        src={imagePreview}
+                        alt="Plan preview"
+                        width={400}
+                        height={200}
+                        className="object-contain w-full h-auto"
+                        unoptimized={imagePreview.startsWith('data:')}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={removeImage}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Click to upload plan picture
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      PNG, JPG, GIF up to 5MB
+                    </p>
+                  </div>
+                )}
+                <Input
+                  id="planImage"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+                {!imagePreview && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => document.getElementById('planImage')?.click()}
+                  >
+                    Choose File
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
+          
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
@@ -263,3 +284,6 @@ export function ChitGroupFormDialog({ open, onOpenChange, group, branches, emplo
     </Dialog>
   );
 }
+
+
+

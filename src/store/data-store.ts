@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Branch, Employee, Customer, ChitGroup, Payment, Template, FollowUp, Expense, Attendance } from "@/types";
+import type { Branch, Employee, Customer, ChitGroup, Payment, Template, FollowUp, Expense } from "@/types";
 import { branches as seedBranches } from "@/data/branches";
 import { employees as seedEmployees } from "@/data/employees";
 import { customers as seedCustomers } from "@/data/customers";
@@ -8,7 +8,8 @@ import { payments as seedPayments } from "@/data/payments";
 import { templates as seedTemplates } from "@/data/templates";
 import { followUps as seedFollowUps } from "@/data/followups";
 import { expenses as seedExpenses } from "@/data/expenses";
-import { attendance as seedAttendance } from "@/data/attendance";
+// import { AttendanceRecord } from "@/services/attendance-service";
+import { AttendanceRecord } from "@/lib/service/attendance-service";
 
 // Mutable in-session mock "database". Seeded from src/data/*, mutated via the
 // actions below. Swap this store's internals for Supabase queries/mutations
@@ -22,7 +23,7 @@ interface DataState {
   templates: Template[];
   followUps: FollowUp[];
   expenses: Expense[];
-  attendance: Attendance[];
+  attendanceHistory: AttendanceRecord[];
 
   addBranch: (b: Branch) => void;
   updateBranch: (id: string, patch: Partial<Branch>) => void;
@@ -31,8 +32,8 @@ interface DataState {
   updateEmployee: (id: string, patch: Partial<Employee>) => void;
 
   addCustomer: (c: Customer) => void;
-  addCustomers: (cs: Customer[]) => void;
   updateCustomer: (id: string, patch: Partial<Customer>) => void;
+  deleteCustomer: (id: string) => void; // ADD THIS
 
   addChitGroup: (g: ChitGroup) => void;
   updateChitGroup: (id: string, patch: Partial<ChitGroup>) => void;
@@ -51,8 +52,10 @@ interface DataState {
   updateExpense: (id: string, patch: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
 
-  // Insert or update an attendance record for an employee on a given date.
-  upsertAttendance: (a: Attendance) => void;
+  // Attendance actions
+  addAttendanceRecord: (record: AttendanceRecord) => void;
+  setAttendanceHistory: (history: AttendanceRecord[]) => void;
+  clearOldAttendance: () => void;
 }
 
 export const useDataStore = create<DataState>((set) => ({
@@ -64,7 +67,7 @@ export const useDataStore = create<DataState>((set) => ({
   templates: seedTemplates,
   followUps: seedFollowUps,
   expenses: seedExpenses,
-  attendance: seedAttendance,
+  attendanceHistory: [],
 
   addBranch: (b) => set((s) => ({ branches: [b, ...s.branches] })),
   updateBranch: (id, patch) =>
@@ -75,9 +78,9 @@ export const useDataStore = create<DataState>((set) => ({
     set((s) => ({ employees: s.employees.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
 
   addCustomer: (c) => set((s) => ({ customers: [c, ...s.customers] })),
-  addCustomers: (cs) => set((s) => ({ customers: [...cs, ...s.customers] })),
   updateCustomer: (id, patch) =>
     set((s) => ({ customers: s.customers.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
+  deleteCustomer: (id) => set((s) => ({ customers: s.customers.filter((x) => x.id !== id) })), // ADD THIS
 
   addChitGroup: (g) => set((s) => ({ chitGroups: [g, ...s.chitGroups] })),
   updateChitGroup: (id, patch) =>
@@ -101,11 +104,22 @@ export const useDataStore = create<DataState>((set) => ({
     set((s) => ({ expenses: s.expenses.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
   deleteExpense: (id) => set((s) => ({ expenses: s.expenses.filter((x) => x.id !== id) })),
 
-  upsertAttendance: (a) =>
+  // Attendance actions
+  addAttendanceRecord: (record) =>
+    set((s) => ({
+      attendanceHistory: [record, ...s.attendanceHistory]
+    })),
+  
+  setAttendanceHistory: (history) =>
+    set({ attendanceHistory: history }),
+  
+  clearOldAttendance: () =>
     set((s) => {
-      const existing = s.attendance.find((x) => x.employeeId === a.employeeId && x.date === a.date);
-      return existing
-        ? { attendance: s.attendance.map((x) => (x.id === existing.id ? { ...existing, ...a, id: existing.id } : x)) }
-        : { attendance: [a, ...s.attendance] };
+      const now = new Date();
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const filtered = s.attendanceHistory.filter(
+        record => new Date(record.timestamp) >= twentyFourHoursAgo
+      );
+      return { attendanceHistory: filtered };
     }),
 }));

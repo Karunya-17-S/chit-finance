@@ -13,8 +13,6 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDataStore } from "@/store/data-store";
 import { useAuthStore } from "@/store/auth-store";
@@ -38,7 +36,6 @@ export default function ChitGroupDetailPage() {
   const group = chitGroups.find((g) => g.id === params.id);
   const [members, setMembers] = React.useState<ChitMember[]>(() => (group ? getMembersByGroup(group.id) : []));
   const [selectedNewMember, setSelectedNewMember] = React.useState("");
-  const [entryPeriodOverride, setEntryPeriodOverride] = React.useState<number | null>(null);
 
   if (!group) {
     return (
@@ -84,22 +81,6 @@ export default function ChitGroupDetailPage() {
     return { period: i + 1, dueDate: dueDate.toISOString().slice(0, 10), amount: group.monthlyInstallment, status: isPast ? "completed" : "pending" };
   });
 
-  // How many periods have elapsed since the group started (used to default the
-  // entry period when a member joins an already-running chit).
-  const TODAY = new Date("2026-07-02");
-  let elapsed = 1;
-  if (group.status !== "pending") {
-    const start = new Date(group.startDate);
-    const ms = TODAY.getTime() - start.getTime();
-    if (ms > 0) {
-      if (group.collectionFrequency === "daily") elapsed = Math.floor(ms / 86400000) + 1;
-      else if (group.collectionFrequency === "weekly") elapsed = Math.floor(ms / (7 * 86400000)) + 1;
-      else elapsed = (TODAY.getFullYear() - start.getFullYear()) * 12 + (TODAY.getMonth() - start.getMonth()) + 1;
-    }
-  }
-  const currentPeriod = Math.min(Math.max(elapsed, 1), totalPeriods);
-  const entryPeriod = Math.min(Math.max(entryPeriodOverride ?? currentPeriod, 1), totalPeriods);
-
   function handleAddMember() {
     if (!selectedNewMember || !group) return;
     const newMember: ChitMember = {
@@ -108,23 +89,20 @@ export default function ChitGroupDetailPage() {
       customerId: selectedNewMember,
       agreementNo: String(134 + members.length),
       joinedDate: "2026-07-02",
-      entryPeriod,
       hasWon: false,
       status: "active",
     };
     setMembers((prev) => [...prev, newMember]);
     setSelectedNewMember("");
-    setEntryPeriodOverride(null);
 
     // Member capacity is flexible — joining beyond the planned count extends it.
     const newCount = group.currentMembers + 1;
-    const midCycle = entryPeriod > 1 ? ` at ${periodLabel.toLowerCase()} ${entryPeriod}` : "";
     if (newCount > group.totalMembers) {
       updateChitGroup(group.id, { currentMembers: newCount, totalMembers: newCount });
-      toast.success(`Member added${midCycle} — capacity extended to ${newCount}.`);
+      toast.success(`Member added — group capacity extended to ${newCount}.`);
     } else {
       updateChitGroup(group.id, { currentMembers: newCount });
-      toast.success(`Member added to chit group${midCycle}.`);
+      toast.success("Member added to chit group.");
     }
   }
 
@@ -162,13 +140,12 @@ export default function ChitGroupDetailPage() {
         <TabsContent value="members">
           <SectionCard
             title="Member List & Prize Winners"
-            description="Members can join at any point in the chit — set the entry period below."
             actions={
               canManage &&
               availableCustomers.length > 0 && (
-                <div className="flex flex-wrap items-end gap-2">
+                <div className="flex items-center gap-2">
                   <Select value={selectedNewMember} onValueChange={setSelectedNewMember}>
-                    <SelectTrigger className="w-44">
+                    <SelectTrigger className="w-48">
                       <SelectValue placeholder="Select customer" />
                     </SelectTrigger>
                     <SelectContent>
@@ -179,20 +156,6 @@ export default function ChitGroupDetailPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="entryPeriod" className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      Joins at {periodLabel.toLowerCase()}
-                    </Label>
-                    <Input
-                      id="entryPeriod"
-                      type="number"
-                      min={1}
-                      max={totalPeriods}
-                      className="h-9 w-24"
-                      value={entryPeriod}
-                      onChange={(e) => setEntryPeriodOverride(Number(e.target.value))}
-                    />
-                  </div>
                   <Button size="sm" className="bg-maroon hover:bg-maroon-dark" disabled={!selectedNewMember} onClick={handleAddMember}>
                     <UserPlus className="h-4 w-4" /> Add
                   </Button>
@@ -208,8 +171,6 @@ export default function ChitGroupDetailPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Customer</TableHead>
-                      <TableHead>Agreement</TableHead>
-                      <TableHead>Entry</TableHead>
                       <TableHead>Joined</TableHead>
                       <TableHead>Prize Status</TableHead>
                       <TableHead>Amount Won</TableHead>
@@ -225,10 +186,6 @@ export default function ChitGroupDetailPage() {
                             <Link href={`/customers/${m.customerId}`} className="hover:text-maroon hover:underline">
                               {customer?.name ?? "—"}
                             </Link>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">{m.agreementNo}</TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {periodLabel} {m.entryPeriod}
                           </TableCell>
                           <TableCell className="text-muted-foreground">{formatDate(m.joinedDate, "short")}</TableCell>
                           <TableCell className="text-muted-foreground">{m.hasWon ? `Won · Month ${m.wonMonth}` : "Not yet won"}</TableCell>

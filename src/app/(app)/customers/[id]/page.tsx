@@ -1,268 +1,402 @@
-"use client";
+/**
+ * Seeds the database with mock data
+ * Run with: npm run db:seed
+ */
+import "dotenv/config";
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 
-import * as React from "react";
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  Contact,
-  Phone,
-  MapPin,
-  Briefcase,
-  Wallet,
-  UserPlus,
-  CalendarDays,
-  IdCard,
-  BookMarked,
-  FileText,
-  Upload,
-  Layers,
-  Receipt,
-  Hourglass,
-} from "lucide-react";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { SectionCard } from "@/components/shared/section-card";
-import { EmptyState } from "@/components/shared/empty-state";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { useDataStore } from "@/store/data-store";
-import { getGroupsByCustomer } from "@/data";
-import { formatCurrency, formatDate, initials } from "@/lib/format";
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
-export default function CustomerDetailPage() {
-  const params = useParams<{ id: string }>();
-  const router = useRouter();
-  const customers = useDataStore((s) => s.customers);
-  const branches = useDataStore((s) => s.branches);
-  const employees = useDataStore((s) => s.employees);
-  const chitGroups = useDataStore((s) => s.chitGroups);
-  const payments = useDataStore((s) => s.payments);
+async function main() {
+  console.log("🌱 Starting seeding...");
 
-  const customer = customers.find((c) => c.id === params.id);
+  // Clean up existing data
+  console.log("🧹 Cleaning up existing data...");
+  
+  await prisma.followUp.deleteMany({});
+  await prisma.receipt.deleteMany({});
+  await prisma.payment.deleteMany({});
+  await prisma.auction.deleteMany({});
+  await prisma.chitMember.deleteMany({});
+  await prisma.chitGroup.deleteMany({});
+  await prisma.customer.deleteMany({});
+  await prisma.employee.deleteMany({});
+  await prisma.user.deleteMany({});
+  await prisma.branch.deleteMany({});
 
-  if (!customer) {
-    return (
-      <EmptyState
-        icon={Contact}
-        title="Customer not found"
-        description="This customer may have been removed."
-        action={
-          <Button variant="outline" onClick={() => router.push("/customers")}>
-            Back to Customers
-          </Button>
-        }
-      />
-    );
+  console.log("✅ Cleanup complete");
+
+  // 1. Create Branches
+  console.log("🏢 Creating branches...");
+  
+  const branch1 = await prisma.branch.create({
+    data: {
+      id: "br-001",
+      code: "BR001",
+      location: "Chennai Main",
+      address: "123 Anna Salai, Chennai - 600001",
+      phone: "9876543210",
+      status: "active",
+    },
+  });
+
+  const branch2 = await prisma.branch.create({
+    data: {
+      id: "br-002",
+      code: "BR002",
+      location: "Coimbatore",
+      address: "456 Race Course Road, Coimbatore - 641018",
+      phone: "9876543211",
+      status: "active",
+    },
+  });
+
+  console.log(`✅ Created ${2} branches`);
+
+  // 2. Create Employees
+  console.log("👨‍💼 Creating employees...");
+
+  const emp1 = await prisma.employee.create({
+    data: {
+      id: "emp-001",
+      employeeCode: "EMP001",
+      name: "Ramesh Kumar",
+      phone: "9876543212",
+      email: "ramesh@shreevaari.com",
+      role: "collection_employee",
+      branchId: branch1.id,
+      joiningDate: new Date("2024-01-01"),
+      status: "active",
+      collectionTarget: 100000,
+      collectionAchieved: 0,
+      isLoggedIn: false,
+    },
+  });
+
+  const emp2 = await prisma.employee.create({
+    data: {
+      id: "emp-002",
+      employeeCode: "EMP002",
+      name: "Suresh Kumar",
+      phone: "9876543213",
+      email: "suresh@shreevaari.com",
+      role: "collection_employee",
+      branchId: branch1.id,
+      joiningDate: new Date("2024-01-15"),
+      status: "active",
+      collectionTarget: 80000,
+      collectionAchieved: 0,
+      isLoggedIn: false,
+    },
+  });
+
+  const emp3 = await prisma.employee.create({
+    data: {
+      id: "emp-003",
+      employeeCode: "EMP003",
+      name: "Priya Rajan",
+      phone: "9876543214",
+      email: "priya@shreevaari.com",
+      role: "branch_admin",
+      branchId: branch2.id,
+      joiningDate: new Date("2024-02-01"),
+      status: "active",
+      collectionTarget: 0,
+      collectionAchieved: 0,
+      isLoggedIn: false,
+    },
+  });
+
+  console.log(`✅ Created ${3} employees`);
+
+  // 3. Create Users
+  console.log("👤 Creating users...");
+
+  await prisma.user.create({
+    data: {
+      id: "user-001",
+      name: "Admin User",
+      email: "admin@shreevaari.com",
+      password: "$2a$10$hashedpassword123", // In real app, use bcrypt
+      role: "admin",
+      branchId: branch1.id,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      id: "user-002",
+      name: "Ramesh Kumar",
+      email: "ramesh@shreevaari.com",
+      password: "$2a$10$hashedpassword123",
+      role: "collection_employee",
+      branchId: branch1.id,
+    },
+  });
+
+  console.log(`✅ Created ${2} users`);
+
+  // 4. Create Customers
+  console.log("👤 Creating customers...");
+
+  const cust1 = await prisma.customer.create({
+    data: {
+      id: "cust-001",
+      customerCode: "CUST001",
+      name: "Mohan Raj",
+      phone: "9876543215",
+      alternatePhone: "9876543216",
+      address: "789 Gandhi Street, Chennai",
+      aadhaarNumber: "1234-5678-9012",
+      panNumber: "ABCDE1234F",
+      occupation: "Business",
+      monthlyIncome: 50000,
+      nomineeName: "Sita Raj",
+      nomineePhone: "9876543217",
+      branchId: branch1.id,
+      joinedDate: new Date("2024-01-01"),
+      status: "active",
+      assignedEmployeeId: emp1.id,
+    },
+  });
+
+  const cust2 = await prisma.customer.create({
+    data: {
+      id: "cust-002",
+      customerCode: "CUST002",
+      name: "Priya Sharma",
+      phone: "9876543218",
+      alternatePhone: "9876543219",
+      address: "101 Nehru Street, Coimbatore",
+      aadhaarNumber: "5678-9012-3456",
+      panNumber: "FGHIJ5678K",
+      occupation: "Teacher",
+      monthlyIncome: 30000,
+      nomineeName: "Rahul Sharma",
+      nomineePhone: "9876543220",
+      branchId: branch2.id,
+      joinedDate: new Date("2024-01-15"),
+      status: "active",
+      assignedEmployeeId: emp3.id,
+    },
+  });
+
+  const cust3 = await prisma.customer.create({
+    data: {
+      id: "cust-003",
+      customerCode: "CUST003",
+      name: "Karthik Kumar",
+      phone: "9876543221",
+      alternatePhone: null,
+      address: "222 Market Street, Chennai",
+      aadhaarNumber: "9012-3456-7890",
+      panNumber: "KLMNO9012P",
+      occupation: "Doctor",
+      monthlyIncome: 80000,
+      nomineeName: "Lakshmi Kumar",
+      nomineePhone: "9876543222",
+      branchId: branch1.id,
+      joinedDate: new Date("2024-02-01"),
+      status: "active",
+      assignedEmployeeId: emp2.id,
+    },
+  });
+
+  console.log(`✅ Created ${3} customers`);
+
+  // 5. Create Chit Groups
+  console.log("📊 Creating chit groups...");
+
+  const chitGroup1 = await prisma.chitGroup.create({
+    data: {
+      id: "chit-001",
+      name: "Silver Jubilee Chit",
+      description: "Monthly chit for small business owners",
+      totalAmount: 500000,
+      numberOfMembers: 10,
+      monthlyInstallment: 50000,
+      startDate: new Date("2024-01-01"),
+      endDate: new Date("2024-12-01"),
+      status: "active",
+      branchId: branch1.id,
+    },
+  });
+
+  const chitGroup2 = await prisma.chitGroup.create({
+    data: {
+      id: "chit-002",
+      name: "Gold Standard Chit",
+      description: "Quarterly chit for investors",
+      totalAmount: 1000000,
+      numberOfMembers: 20,
+      monthlyInstallment: 50000,
+      startDate: new Date("2024-01-15"),
+      endDate: new Date("2024-12-15"),
+      status: "active",
+      branchId: branch2.id,
+    },
+  });
+
+  console.log(`✅ Created ${2} chit groups`);
+
+  // 6. Create Chit Members
+  console.log("📝 Creating chit members...");
+
+  await prisma.chitMember.create({
+    data: {
+      id: "cm-001",
+      chitGroupId: chitGroup1.id,
+      customerId: cust1.id,
+      joinedDate: new Date("2024-01-01"),
+      status: "active",
+    },
+  });
+
+  await prisma.chitMember.create({
+    data: {
+      id: "cm-002",
+      chitGroupId: chitGroup1.id,
+      customerId: cust3.id,
+      joinedDate: new Date("2024-02-01"),
+      status: "active",
+    },
+  });
+
+  await prisma.chitMember.create({
+    data: {
+      id: "cm-003",
+      chitGroupId: chitGroup2.id,
+      customerId: cust2.id,
+      joinedDate: new Date("2024-01-15"),
+      status: "active",
+    },
+  });
+
+  console.log(`✅ Created ${3} chit members`);
+
+  // 7. Create Payments
+  console.log("💰 Creating payments...");
+
+  const chitMember1 = await prisma.chitMember.findFirst({
+    where: { customerId: cust1.id },
+  });
+
+  const chitMember2 = await prisma.chitMember.findFirst({
+    where: { customerId: cust2.id },
+  });
+
+  if (chitMember1) {
+    await prisma.payment.create({
+      data: {
+        id: "pay-001",
+        chitMemberId: chitMember1.id,
+        customerId: cust1.id,
+        branchId: branch1.id,
+        amount: 50000,
+        paidDate: new Date("2024-01-01"),
+        dueDate: new Date("2024-01-31"),
+        status: "completed",
+        paymentMode: "cash",
+        referenceNo: "REC-001",
+        notes: "First installment",
+      },
+    });
   }
 
-  const branch = branches.find((b) => b.id === customer.branchId);
-  const employee = employees.find((e) => e.id === customer.assignedEmployeeId);
-  const memberships = getGroupsByCustomer(customer.id);
-  const customerPayments = payments
-    .filter((p) => p.customerId === customer.id)
-    .sort((a, b) => b.month.localeCompare(a.month));
-  const pendingDues = customerPayments.filter((p) => p.status === "pending" || p.status === "overdue");
+  if (chitMember2) {
+    await prisma.payment.create({
+      data: {
+        id: "pay-002",
+        chitMemberId: chitMember2.id,
+        customerId: cust2.id,
+        branchId: branch2.id,
+        amount: 50000,
+        paidDate: new Date("2024-01-15"),
+        dueDate: new Date("2024-02-15"),
+        status: "pending",
+        paymentMode: "bank_transfer",
+        referenceNo: null,
+        notes: "Awaiting payment",
+      },
+    });
+  }
 
-  return (
-    <div>
-      <Link href="/customers" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to Customers
-      </Link>
+  console.log(`✅ Created ${2} payments`);
 
-      <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-maroon text-lg font-bold text-white">
-            {initials(customer.name)}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-foreground">{customer.name}</h2>
-              <StatusBadge status={customer.status} />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {customer.customerCode} · {branch?.location ?? "—"}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <UserPlus className="h-4 w-4 text-gold" />
-          Assigned to <span className="font-medium text-foreground">{employee?.name ?? "Unassigned"}</span>
-        </div>
-      </div>
+  // 8. Create Auctions
+  console.log("🔨 Creating auctions...");
 
-      <SectionCard title="KYC & Contact Information" className="mb-5">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <InfoItem icon={BookMarked} label="Passbook Number" value={customer.passbookNumber} />
-          <InfoItem icon={Phone} label="Phone" value={customer.phone} />
-          <InfoItem icon={Phone} label="Alternate Phone" value={customer.alternatePhone ?? "—"} />
-          <InfoItem icon={MapPin} label="Address" value={customer.address} />
-          <InfoItem icon={IdCard} label="Aadhaar Number" value={customer.aadhaarNumber} />
-          <InfoItem icon={IdCard} label="PAN Number" value={customer.panNumber} />
-          <InfoItem icon={Briefcase} label="Occupation" value={customer.occupation} />
-          <InfoItem icon={Wallet} label="Monthly Income" value={formatCurrency(customer.monthlyIncome)} />
-          <InfoItem icon={CalendarDays} label="Joined Date" value={formatDate(customer.joinedDate)} />
-          <InfoItem icon={UserPlus} label="Nominee" value={`${customer.nomineeName} · ${customer.nomineePhone}`} />
-        </div>
-      </SectionCard>
+  await prisma.auction.create({
+    data: {
+      id: "auc-001",
+      chitGroupId: chitGroup1.id,
+      auctionDate: new Date("2024-01-15"),
+      amount: 45000,
+      status: "completed",
+    },
+  });
 
-      <Tabs defaultValue="chits">
-        <TabsList>
-          <TabsTrigger value="chits">Chit History ({memberships.length})</TabsTrigger>
-          <TabsTrigger value="payments">Payment History ({customerPayments.length})</TabsTrigger>
-          <TabsTrigger value="dues">Pending Dues ({pendingDues.length})</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-        </TabsList>
+  await prisma.auction.create({
+    data: {
+      id: "auc-002",
+      chitGroupId: chitGroup1.id,
+      auctionDate: new Date("2024-02-15"),
+      amount: 43000,
+      status: "scheduled",
+    },
+  });
 
-        <TabsContent value="chits">
-          <SectionCard title="Chit Group Membership">
-            {memberships.length === 0 ? (
-              <EmptyState icon={Layers} title="No chit group memberships" description="This customer has not joined any chit groups yet." />
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Group</TableHead>
-                      <TableHead>Joined</TableHead>
-                      <TableHead>Prize Won</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {memberships.map((m) => {
-                      const group = chitGroups.find((g) => g.id === m.chitGroupId);
-                      return (
-                        <TableRow key={m.id}>
-                          <TableCell className="font-medium text-foreground">
-                            <Link href={`/chit-groups/${m.chitGroupId}`} className="hover:text-maroon hover:underline">
-                              {group?.groupName ?? "—"}
-                            </Link>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">{formatDate(m.joinedDate, "short")}</TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {m.hasWon ? `Month ${m.wonMonth}` : "Not yet won"}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">{m.hasWon && m.wonAmount ? formatCurrency(m.wonAmount) : "—"}</TableCell>
-                          <TableCell>
-                            <StatusBadge status={m.status} />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </SectionCard>
-        </TabsContent>
+  console.log(`✅ Created ${2} auctions`);
 
-        <TabsContent value="payments">
-          <SectionCard title="Payment History">
-            {customerPayments.length === 0 ? (
-              <EmptyState icon={Receipt} title="No payments yet" description="Collected payments for this customer will appear here." />
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Month</TableHead>
-                      <TableHead>Chit Group</TableHead>
-                      <TableHead>Due</TableHead>
-                      <TableHead>Paid</TableHead>
-                      <TableHead>Mode</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {customerPayments.map((p) => {
-                      const group = chitGroups.find((g) => g.id === p.chitGroupId);
-                      return (
-                        <TableRow key={p.id}>
-                          <TableCell className="text-muted-foreground">{p.month}</TableCell>
-                          <TableCell className="text-muted-foreground">{group?.groupName ?? "—"}</TableCell>
-                          <TableCell className="text-muted-foreground">{formatCurrency(p.dueAmount)}</TableCell>
-                          <TableCell className="font-medium text-foreground">{formatCurrency(p.paidAmount)}</TableCell>
-                          <TableCell className="capitalize text-muted-foreground">{p.paymentMode?.replace("_", " ") ?? "—"}</TableCell>
-                          <TableCell>
-                            <StatusBadge status={p.status} />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </SectionCard>
-        </TabsContent>
+  // 9. Create Follow-ups
+  console.log("📞 Creating follow-ups...");
 
-        <TabsContent value="dues">
-          <SectionCard title="Pending Dues">
-            {pendingDues.length === 0 ? (
-              <EmptyState icon={Hourglass} title="No pending dues" description="This customer is fully up to date on payments." />
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Month</TableHead>
-                      <TableHead>Chit Group</TableHead>
-                      <TableHead>Outstanding</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingDues.map((p) => {
-                      const group = chitGroups.find((g) => g.id === p.chitGroupId);
-                      return (
-                        <TableRow key={p.id}>
-                          <TableCell className="text-muted-foreground">{p.month}</TableCell>
-                          <TableCell className="text-muted-foreground">{group?.groupName ?? "—"}</TableCell>
-                          <TableCell className="font-semibold text-destructive">{formatCurrency(p.dueAmount - p.paidAmount)}</TableCell>
-                          <TableCell>
-                            <StatusBadge status={p.status} />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </SectionCard>
-        </TabsContent>
+  await prisma.followUp.create({
+    data: {
+      id: "fu-001",
+      customerId: cust2.id,
+      employeeId: emp3.id,
+      followUpDate: new Date("2024-02-01"),
+      notes: "Customer needs to be reminded about payment",
+      status: "pending",
+    },
+  });
 
-        <TabsContent value="documents">
-          <SectionCard title="KYC Documents" description="Document uploads are not yet connected to storage in this preview.">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {["Aadhaar Card", "PAN Card", "Photograph"].map((doc) => (
-                <div key={doc} className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border p-6 text-center">
-                  <FileText className="h-7 w-7 text-muted-foreground" />
-                  <p className="text-sm font-medium text-foreground">{doc}</p>
-                  <p className="text-xs text-muted-foreground">Not uploaded</p>
-                  <Button variant="outline" size="sm" disabled className="mt-1">
-                    <Upload className="h-3.5 w-3.5" /> Upload
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
+  await prisma.followUp.create({
+    data: {
+      id: "fu-002",
+      customerId: cust1.id,
+      employeeId: emp1.id,
+      followUpDate: new Date("2024-02-05"),
+      notes: "Follow up on new chit offer",
+      status: "completed",
+    },
+  });
+
+  console.log(`✅ Created ${2} follow-ups`);
+
+  // Final counts
+  const counts = {
+    branches: await prisma.branch.count(),
+    users: await prisma.user.count(),
+    employees: await prisma.employee.count(),
+    customers: await prisma.customer.count(),
+    chitGroups: await prisma.chitGroup.count(),
+    chitMembers: await prisma.chitMember.count(),
+    payments: await prisma.payment.count(),
+    auctions: await prisma.auction.count(),
+    followUps: await prisma.followUp.count(),
+  };
+
+  console.log("\n📊 Final Counts:", counts);
+  console.log("✅ Database seeded successfully!");
 }
 
-function InfoItem({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
-  return (
-    <div className="flex items-start gap-2.5">
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
-      <div className="min-w-0">
-        <p className="text-[11px] text-muted-foreground">{label}</p>
-        <p className="truncate text-sm font-medium text-foreground">{value}</p>
-      </div>
-    </div>
-  );
-}
+main()
+  .catch((e) => {
+    console.error("❌ Seeding failed:", e);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());
