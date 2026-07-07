@@ -149,8 +149,8 @@ export default function CustomersPage() {
           nomineePhone: c.nomineePhone || "",
           joinedDate: c.joinedDate || new Date().toISOString().split("T")[0],
           branchId: c.branchId || branchId || "br-001",
-          status: c.status?.toLowerCase() === "inactive" ? "inactive" : "active",
-          avatarUrl: null,
+          status: (c.status?.toLowerCase() === "inactive" ? "inactive" : "active") as "active" | "inactive",
+          avatarUrl: undefined,
         };
 
         addCustomer(newCustomer);

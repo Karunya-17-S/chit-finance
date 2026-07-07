@@ -263,8 +263,8 @@ export function BulkImportDialog({
         nomineePhone: data.nomineePhone || "",
         joinedDate: data.joinedDate || new Date().toISOString().split('T')[0],
         branchId: branchId || data.branchId || "br-001",
-        status: data.status?.toLowerCase() === "inactive" ? "inactive" : "active",
-        avatarUrl: null,
+        status: (data.status?.toLowerCase() === "inactive" ? "inactive" : "active") as "active" | "inactive",
+        avatarUrl: undefined,
       };
     });
 
