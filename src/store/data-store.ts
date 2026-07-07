@@ -31,8 +31,8 @@ interface DataState {
   updateEmployee: (id: string, patch: Partial<Employee>) => void;
 
   addCustomer: (c: Customer) => void;
-  addCustomers: (cs: Customer[]) => void;
   updateCustomer: (id: string, patch: Partial<Customer>) => void;
+  deleteCustomer: (id: string) => void;
 
   addChitGroup: (g: ChitGroup) => void;
   updateChitGroup: (id: string, patch: Partial<ChitGroup>) => void;
@@ -75,9 +75,9 @@ export const useDataStore = create<DataState>((set) => ({
     set((s) => ({ employees: s.employees.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
 
   addCustomer: (c) => set((s) => ({ customers: [c, ...s.customers] })),
-  addCustomers: (cs) => set((s) => ({ customers: [...cs, ...s.customers] })),
   updateCustomer: (id, patch) =>
     set((s) => ({ customers: s.customers.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
+  deleteCustomer: (id) => set((s) => ({ customers: s.customers.filter((x) => x.id !== id) })),
 
   addChitGroup: (g) => set((s) => ({ chitGroups: [g, ...s.chitGroups] })),
   updateChitGroup: (id, patch) =>

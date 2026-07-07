@@ -98,7 +98,7 @@ export function BulkImportDialog({
           const csv = Papa.parse(event.target?.result as string, {
             header: true,
             skipEmptyLines: true,
-            transformHeader: (header: string) => header.trim(),
+            transformHeader: (header) => header.trim(),
           });
 
           data = csv.data as any[];
@@ -151,9 +151,6 @@ export function BulkImportDialog({
             return obj;
           });
         }
-
-        console.log("Headers:", headers);
-        console.log("Data:", data);
 
         setFileHeaders(headers);
 
@@ -228,7 +225,7 @@ export function BulkImportDialog({
   const handleImport = async () => {
     // Filter valid rows
     const validRows = preview.filter((p) => p.valid);
-    
+
     if (validRows.length === 0) {
       alert("No valid rows to import. Please fix the errors.");
       return;
@@ -244,18 +241,19 @@ export function BulkImportDialog({
       return num > max ? num : max;
     }, 0);
 
-    // Map valid rows to customer objects with unique IDs
+    // Map valid rows to customer objects with unique IDs.
+    // Note: the parent page's onImport handler re-derives final ids/customerCode/
+    // passbookNumber, so these are provisional values passed through as raw data.
     const customers = validRows.map((p, index) => {
       const data = p.data;
       const newId = `cust-${String(maxId + index + 1).padStart(3, "0")}`;
       return {
         id: newId,
         customerCode: `SVCF-C${String(maxId + index + 1).padStart(3, "0")}`,
-        passbookNumber: data.passbookNumber || `SVCF-PB-${String(maxId + index + 1).padStart(3, "0")}`,
         assignedEmployeeId: null,
         name: data.name || "",
         phone: data.phone || "",
-        alternatePhone: data.alternatePhone || undefined,
+        alternatePhone: data.alternatePhone || "",
         address: data.address || "",
         aadhaarNumber: data.aadhaarNumber || "",
         panNumber: data.panNumber?.toUpperCase() || "",
@@ -265,12 +263,10 @@ export function BulkImportDialog({
         nomineePhone: data.nomineePhone || "",
         joinedDate: data.joinedDate || new Date().toISOString().split('T')[0],
         branchId: branchId || data.branchId || "br-001",
-        status: (data.status?.toLowerCase() === "inactive" ? "inactive" : "active") as any,
-        avatarUrl: undefined,
+        status: data.status?.toLowerCase() === "inactive" ? "inactive" : "active",
+        avatarUrl: null,
       };
     });
-
-    console.log("Importing customers:", customers);
 
     // Simulate progress
     const total = customers.length;
@@ -282,7 +278,7 @@ export function BulkImportDialog({
     // Call the import function
     onImport(customers);
     setStep("complete");
-    
+
     setTimeout(() => {
       onOpenChange(false);
       resetState();
@@ -314,8 +310,7 @@ export function BulkImportDialog({
       "nomineeName",
       "nomineePhone",
       "joinedDate",
-      "status",
-      "passbookNumber",
+      "status"
     ];
 
     const sampleData = {
@@ -330,8 +325,7 @@ export function BulkImportDialog({
       nomineeName: "Jane Doe",
       nomineePhone: "9876543212",
       joinedDate: new Date().toISOString().split('T')[0],
-      status: "active",
-      passbookNumber: "SVCF-PB-001",
+      status: "active"
     };
 
     const ws = XLSX.utils.json_to_sheet([sampleData]);
@@ -344,7 +338,7 @@ export function BulkImportDialog({
   const errorCount = preview.filter((p) => !p.valid).length;
 
   // Check if headers match expected format
-  const hasValidHeaders = fileHeaders.some(h => 
+  const hasValidHeaders = fileHeaders.some(h =>
     REQUIRED_FIELDS.some(f => h.toLowerCase().trim() === f.toLowerCase())
   );
 
@@ -358,8 +352,8 @@ export function BulkImportDialog({
           </DialogTitle>
           <DialogDescription>
             Upload a CSV or Excel file with customer data.
-            <Button 
-              variant="link" 
+            <Button
+              variant="link"
               className="px-1 h-auto text-maroon font-semibold"
               onClick={downloadTemplate}
             >
@@ -376,7 +370,7 @@ export function BulkImportDialog({
                 <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-4 text-sm">
                   <p className="font-medium text-blue-800 dark:text-blue-300">📋 How to import:</p>
                   <ol className="mt-2 list-decimal pl-5 text-blue-700 dark:text-blue-400 space-y-1">
-                    <li>Click <strong>"Download Template"</strong> above to get the Excel file</li>
+                    <li>Click <strong>&quot;Download Template&quot;</strong> above to get the Excel file</li>
                     <li>Fill in customer details (required fields are marked)</li>
                     <li>Save the file as CSV or Excel format</li>
                     <li>Upload the file using the box below</li>

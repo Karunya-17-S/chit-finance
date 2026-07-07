@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Contact, MoreVertical, FileSpreadsheet } from "lucide-react";
+import { Plus, Contact, MoreVertical, Upload, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Toolbar, SearchInput } from "@/components/shared/toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -11,7 +11,20 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { CustomerFormDialog, type CustomerFormValues } from "@/components/customers/customer-form-dialog";
 import { BulkImportDialog } from "@/components/customers/bulk-import-dialog";
 import { useDataStore } from "@/store/data-store";
@@ -26,8 +39,8 @@ export default function CustomersPage() {
   const branches = useDataStore((s) => s.branches);
   const employees = useDataStore((s) => s.employees);
   const addCustomer = useDataStore((s) => s.addCustomer);
-  const addCustomers = useDataStore((s) => s.addCustomers);
   const updateCustomer = useDataStore((s) => s.updateCustomer);
+  const deleteCustomer = useDataStore((s) => s.deleteCustomer);
 
   const currentUser = useAuthStore((s) => s.currentUser);
   const { branchId, employeeId } = useDataScope();
@@ -39,7 +52,9 @@ export default function CustomersPage() {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [importDialogOpen, setImportDialogOpen] = React.useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [activeCustomer, setActiveCustomer] = React.useState<Customer | undefined>(undefined);
+  const [customerToDelete, setCustomerToDelete] = React.useState<Customer | undefined>(undefined);
 
   let scopedCustomers = branchId ? customers.filter((c) => c.branchId === branchId) : customers;
   if (currentUser?.role === "collection_employee") {
@@ -67,6 +82,24 @@ export default function CustomersPage() {
     setDialogOpen(true);
   }
 
+  function handleDeleteClick(customer: Customer) {
+    setCustomerToDelete(customer);
+    setDeleteDialogOpen(true);
+  }
+
+  function handleDeleteConfirm() {
+    if (!customerToDelete) return;
+    try {
+      deleteCustomer(customerToDelete.id);
+      toast.success(`"${customerToDelete.name}" deleted successfully.`);
+      setDeleteDialogOpen(false);
+      setCustomerToDelete(undefined);
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error("Failed to delete customer. Please try again.");
+    }
+  }
+
   function handleSubmit(values: CustomerFormValues) {
     if (activeCustomer) {
       updateCustomer(activeCustomer.id, { ...values, alternatePhone: values.alternatePhone || undefined });
@@ -86,6 +119,51 @@ export default function CustomersPage() {
     setDialogOpen(false);
   }
 
+  function handleBulkImport(importedCustomers: any[]) {
+    if (!importedCustomers || importedCustomers.length === 0) {
+      toast.error("No customers to import.");
+      return;
+    }
+
+    try {
+      const currentCount = customers.length;
+
+      importedCustomers.forEach((c, index) => {
+        const seq = String(currentCount + index + 1).padStart(3, "0");
+        const newCustomer = {
+          id: `cust-${seq}`,
+          customerCode: `SVCF-C${seq}`,
+          // Respect an imported passbook number if the sheet had one, otherwise auto-generate —
+          // customer self-login depends on every customer having one.
+          passbookNumber: (c.passbookNumber && String(c.passbookNumber).trim()) || `SVCF-PB-${seq}`,
+          assignedEmployeeId: null,
+          name: c.name || "",
+          phone: c.phone || "",
+          alternatePhone: c.alternatePhone || undefined,
+          address: c.address || "",
+          aadhaarNumber: c.aadhaarNumber || "",
+          panNumber: c.panNumber?.toUpperCase() || "",
+          occupation: c.occupation || "",
+          monthlyIncome: Number(c.monthlyIncome) || 0,
+          nomineeName: c.nomineeName || "",
+          nomineePhone: c.nomineePhone || "",
+          joinedDate: c.joinedDate || new Date().toISOString().split("T")[0],
+          branchId: c.branchId || branchId || "br-001",
+          status: c.status?.toLowerCase() === "inactive" ? "inactive" : "active",
+          avatarUrl: null,
+        };
+
+        addCustomer(newCustomer);
+      });
+
+      toast.success(`${importedCustomers.length} customers imported successfully!`);
+      setImportDialogOpen(false);
+    } catch (error) {
+      console.error("Import error:", error);
+      toast.error("Failed to import customers. Please check the console for details.");
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -93,14 +171,19 @@ export default function CustomersPage() {
         description="All chit fund customers across branches."
         actions={
           canManage && (
-            <div className="flex gap-2">
-              <Button onClick={() => setImportDialogOpen(true)} variant="outline" className="border-maroon text-maroon hover:bg-maroon/10">
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Import
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setImportDialogOpen(true)}
+                className="border-gold text-gold hover:bg-gold/10"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Import Customers
               </Button>
               <Button onClick={handleAdd} className="bg-maroon hover:bg-maroon-dark">
-                <Plus className="h-4 w-4" /> Add Customer
+                <Plus className="h-4 w-4 mr-2" /> Add Customer
               </Button>
-            </div>
+            </>
           )
         }
       />
@@ -162,7 +245,9 @@ export default function CustomersPage() {
                       <Link href={`/customers/${c.id}`} className="font-medium text-foreground hover:text-maroon hover:underline">
                         {c.name}
                       </Link>
-                      <p className="text-xs text-muted-foreground">Passbook {c.passbookNumber} · {c.phone}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Passbook {c.passbookNumber} · {c.phone}
+                      </p>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{branch?.location ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{c.occupation}</TableCell>
@@ -183,7 +268,18 @@ export default function CustomersPage() {
                             <DropdownMenuItem asChild>
                               <Link href={`/customers/${c.id}`}>View Profile</Link>
                             </DropdownMenuItem>
-                            {canManage && <DropdownMenuItem onClick={() => handleEdit(c)}>Edit Customer</DropdownMenuItem>}
+                            {canManage && (
+                              <>
+                                <DropdownMenuItem onClick={() => handleEdit(c)}>Edit Customer</DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteClick(c)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Customer
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -208,12 +304,29 @@ export default function CustomersPage() {
       <BulkImportDialog
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
-        onImport={(imported) => {
-          addCustomers(imported);
-          toast.success(`Successfully imported ${imported.length} customers.`);
-        }}
+        onImport={handleBulkImport}
         branchId={branchId ?? undefined}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Customer</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{customerToDelete?.name}&quot;? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

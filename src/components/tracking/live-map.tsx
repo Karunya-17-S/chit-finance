@@ -12,6 +12,24 @@ import { useDataStore } from "@/store/data-store";
 import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { LocationPing } from "@/types";
+import dynamic from "next/dynamic";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+
+// Fix Leaflet default marker icons (Next.js/webpack breaks Leaflet's default asset resolution).
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+});
+
+// Dynamically import Leaflet components to avoid SSR issues (Leaflet needs `window`).
+const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
+const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
+const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false });
+const Polyline = dynamic(() => import("react-leaflet").then((mod) => mod.Polyline), { ssr: false });
 
 interface LiveMapProps {
   /** Branch scope for branch admins; undefined = all branches (main admin). */
@@ -31,7 +49,7 @@ function googleMapsDirectionsUrl(ping: LocationPing): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${ping.lat},${ping.lng}`;
 }
 
-const PIN_COLORS = ["var(--maroon)", "var(--gold)", "var(--success)", "var(--warning)"];
+const PIN_COLORS = ["#8B1A1A", "#D4A843", "#22c55e", "#f59e0b"];
 
 export function LiveMap({ branchId }: LiveMapProps) {
   const employees = useDataStore((s) => s.employees);
@@ -46,28 +64,25 @@ export function LiveMap({ branchId }: LiveMapProps) {
     .filter((t) => t.employee);
 
   const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string | null>(null);
-  const activeEmployeeId = selectedEmployeeId && trackedEmployees.some((t) => t.employee!.id === selectedEmployeeId)
-    ? selectedEmployeeId
-    : trackedEmployees[0]?.employee!.id ?? null;
+  const activeEmployeeId =
+    selectedEmployeeId && trackedEmployees.some((t) => t.employee!.id === selectedEmployeeId)
+      ? selectedEmployeeId
+      : (trackedEmployees[0]?.employee!.id ?? null);
 
   const trail = activeEmployeeId ? getPingsByEmployee(activeEmployeeId) : [];
 
-  // Normalize lat/lng of all visible pings into the SVG viewBox with padding.
+  // Calculate map center from all visible pings (falls back to Bengaluru coords if none).
   const allPings = trackedEmployees.flatMap((t) => getPingsByEmployee(t.employee!.id));
-  const lats = allPings.map((p) => p.lat);
-  const lngs = allPings.map((p) => p.lng);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  const W = 520;
-  const H = 340;
-  const PAD = 44;
+  const centerLat = allPings.length > 0 ? allPings.reduce((sum, p) => sum + p.lat, 0) / allPings.length : 12.9716;
+  const centerLng = allPings.length > 0 ? allPings.reduce((sum, p) => sum + p.lng, 0) / allPings.length : 77.5946;
 
-  function project(ping: LocationPing): { x: number; y: number } {
-    const x = maxLng === minLng ? W / 2 : PAD + ((ping.lng - minLng) / (maxLng - minLng)) * (W - PAD * 2);
-    const y = maxLat === minLat ? H / 2 : H - PAD - ((ping.lat - minLat) / (maxLat - minLat)) * (H - PAD * 2);
-    return { x, y };
+  function createMarkerIcon(color: string, label: string) {
+    return L.divIcon({
+      className: "custom-marker",
+      html: `<div style="background-color: ${color}; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${label}</div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    });
   }
 
   if (trackedEmployees.length === 0) {
@@ -106,75 +121,81 @@ export function LiveMap({ branchId }: LiveMapProps) {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         {/* Map panel */}
         <SectionCard title="Movement Map" description="Today's routes — select an employee to highlight their trail" className="xl:col-span-3">
-          <div className="overflow-hidden rounded-xl border border-border bg-[#f2efe9] dark:bg-[#241f1a]">
-            <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full">
-              {/* stylized city grid */}
-              {Array.from({ length: 12 }).map((_, i) => (
-                <line key={`v${i}`} x1={(i + 1) * (W / 13)} y1={0} x2={(i + 1) * (W / 13)} y2={H} stroke="var(--border)" strokeWidth={1} opacity={0.55} />
-              ))}
-              {Array.from({ length: 8 }).map((_, i) => (
-                <line key={`h${i}`} x1={0} y1={(i + 1) * (H / 9)} x2={W} y2={(i + 1) * (H / 9)} stroke="var(--border)" strokeWidth={1} opacity={0.55} />
-              ))}
-              {/* main roads */}
-              <line x1={0} y1={H * 0.62} x2={W} y2={H * 0.42} stroke="var(--muted-foreground)" strokeWidth={5} opacity={0.14} />
-              <line x1={W * 0.3} y1={0} x2={W * 0.52} y2={H} stroke="var(--muted-foreground)" strokeWidth={5} opacity={0.14} />
+          <div className="h-[400px] w-full overflow-hidden rounded-xl border border-border">
+            <MapContainer center={[centerLat, centerLng]} zoom={15} style={{ height: "100%", width: "100%" }} zoomControl={true}>
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
 
-              {/* selected employee trail */}
+              {/* Trail for selected employee */}
               {trail.length > 1 && (
-                <polyline
-                  points={trail.map((p) => { const { x, y } = project(p); return `${x},${y}`; }).join(" ")}
-                  fill="none"
-                  stroke="var(--maroon)"
-                  strokeWidth={2.5}
-                  strokeDasharray="6 5"
-                  strokeLinecap="round"
-                  opacity={0.8}
-                />
+                <Polyline positions={trail.map((p) => [p.lat, p.lng])} color="#8B1A1A" weight={3} dashArray="6,5" opacity={0.8} />
               )}
-              {/* trail waypoints */}
+
+              {/* Trail waypoints */}
               {trail.map((p, i) => {
-                const { x, y } = project(p);
                 const isLast = i === trail.length - 1;
+                if (isLast) return null;
                 return (
-                  <g key={p.id}>
-                    <circle cx={x} cy={y} r={isLast ? 0 : 4.5} fill="var(--card)" stroke="var(--maroon)" strokeWidth={2} />
-                    {!isLast && (
-                      <text x={x} y={y - 9} textAnchor="middle" fontSize={9} fill="var(--muted-foreground)">
-                        {formatTime(p.timestamp)}
-                      </text>
-                    )}
-                  </g>
+                  <Marker
+                    key={p.id}
+                    position={[p.lat, p.lng]}
+                    icon={L.divIcon({
+                      className: "waypoint-marker",
+                      html: `<div style="background: white; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #8B1A1A; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>`,
+                      iconSize: [10, 10],
+                      iconAnchor: [5, 5],
+                    })}
+                  >
+                    <Popup>{formatTime(p.timestamp)}</Popup>
+                  </Marker>
                 );
               })}
 
-              {/* latest position pins for all employees */}
+              {/* Employee markers */}
               {trackedEmployees.map(({ ping, employee }, idx) => {
-                const { x, y } = project(ping);
                 const active = employee!.id === activeEmployeeId;
                 const color = PIN_COLORS[idx % PIN_COLORS.length];
+                const markerIcon = createMarkerIcon(color, initials(employee!.name));
+
                 return (
-                  <g
+                  <Marker
                     key={ping.id}
-                    onClick={() => setSelectedEmployeeId(employee!.id)}
-                    className="cursor-pointer"
-                    opacity={active ? 1 : 0.65}
+                    position={[ping.lat, ping.lng]}
+                    icon={markerIcon}
+                    eventHandlers={{
+                      click: () => setSelectedEmployeeId(employee!.id),
+                    }}
                   >
-                    {active && <circle cx={x} cy={y} r={19} fill={color} opacity={0.15} />}
-                    <circle cx={x} cy={y} r={13} fill={color} stroke="var(--card)" strokeWidth={2.5} />
-                    <text x={x} y={y + 3.5} textAnchor="middle" fontSize={9} fontWeight={700} fill="#fff">
-                      {initials(employee!.name)}
-                    </text>
-                    <text x={x} y={y + 30} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--foreground)">
-                      {employee!.name.split(" ")[0]}
-                    </text>
-                  </g>
+                    <Popup>
+                      <div className="text-center">
+                        <p className="font-bold">{employee!.name}</p>
+                        <p className="text-sm text-muted-foreground">{ping.address}</p>
+                        <p className="text-xs text-muted-foreground">{formatTime(ping.timestamp)}</p>
+                        <div className="mt-2 flex gap-2">
+                          <a href={googleMapsUrl(ping)} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+                            Google Maps
+                          </a>
+                          {active && (
+                            <a
+                              href={googleMapsDirectionsUrl(ping)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Directions
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </Popup>
+                  </Marker>
                 );
               })}
-            </svg>
+            </MapContainer>
           </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            Stylized route preview — use the Google Maps links in the timeline for exact street navigation.
-          </p>
+          <p className="mt-2 text-[11px] text-muted-foreground">Click on any employee pin to view details. Routes shown for selected employee.</p>
         </SectionCard>
 
         {/* Employee list + timeline */}
