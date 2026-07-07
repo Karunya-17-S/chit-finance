@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Contact, MoreVertical } from "lucide-react";
+import { Plus, Contact, MoreVertical, FileSpreadsheet } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Toolbar, SearchInput } from "@/components/shared/toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CustomerFormDialog, type CustomerFormValues } from "@/components/customers/customer-form-dialog";
+import { BulkImportDialog } from "@/components/customers/bulk-import-dialog";
 import { useDataStore } from "@/store/data-store";
 import { useDataScope } from "@/hooks/use-data-scope";
 import { useAuthStore } from "@/store/auth-store";
@@ -25,6 +26,7 @@ export default function CustomersPage() {
   const branches = useDataStore((s) => s.branches);
   const employees = useDataStore((s) => s.employees);
   const addCustomer = useDataStore((s) => s.addCustomer);
+  const addCustomers = useDataStore((s) => s.addCustomers);
   const updateCustomer = useDataStore((s) => s.updateCustomer);
 
   const currentUser = useAuthStore((s) => s.currentUser);
@@ -36,6 +38,7 @@ export default function CustomersPage() {
   const [branchFilter, setBranchFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [importDialogOpen, setImportDialogOpen] = React.useState(false);
   const [activeCustomer, setActiveCustomer] = React.useState<Customer | undefined>(undefined);
 
   let scopedCustomers = branchId ? customers.filter((c) => c.branchId === branchId) : customers;
@@ -90,9 +93,14 @@ export default function CustomersPage() {
         description="All chit fund customers across branches."
         actions={
           canManage && (
-            <Button onClick={handleAdd} className="bg-maroon hover:bg-maroon-dark">
-              <Plus className="h-4 w-4" /> Add Customer
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setImportDialogOpen(true)} variant="outline" className="border-maroon text-maroon hover:bg-maroon/10">
+                <FileSpreadsheet className="h-4 w-4 mr-2" /> Import
+              </Button>
+              <Button onClick={handleAdd} className="bg-maroon hover:bg-maroon-dark">
+                <Plus className="h-4 w-4" /> Add Customer
+              </Button>
+            </div>
           )
         }
       />
@@ -195,6 +203,16 @@ export default function CustomersPage() {
         branches={branches}
         lockBranchId={branchId ?? undefined}
         onSubmit={handleSubmit}
+      />
+
+      <BulkImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onImport={(imported) => {
+          addCustomers(imported);
+          toast.success(`Successfully imported ${imported.length} customers.`);
+        }}
+        branchId={branchId ?? undefined}
       />
     </div>
   );
