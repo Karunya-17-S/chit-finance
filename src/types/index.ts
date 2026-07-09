@@ -38,6 +38,9 @@ export interface Branch {
   activeChitGroups: number;
   monthlyCollection: number;
   pendingAmount: number;
+  // Soft-delete marker — ISO timestamp of when the branch was deleted, or
+  // null/undefined if active. Kept for a 10-day recovery window before purge.
+  deletedAt?: string | null;
 }
 
 export type EmployeeRole =
@@ -61,6 +64,11 @@ export interface Employee {
   collectionTarget: number;
   collectionAchieved: number;
   avatarUrl?: string;
+  loginTime?: string | null;
+  logoutTime?: string | null;
+  isLoggedIn?: boolean;
+  lastActivityAt?: string | null;
+  currentSessionId?: string | null;
 }
 
 export interface Customer {

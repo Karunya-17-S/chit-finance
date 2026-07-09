@@ -45,6 +45,14 @@ export function formatDate(date: string | Date | null, style: "short" | "medium"
   return new Intl.DateTimeFormat("en-IN", opts).format(d);
 }
 
+// Formats a timestamp as a time-of-day string, e.g. "09:41 AM".
+export function formatTime(date: string | Date | null): string {
+  if (!date) return "—";
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-IN", { hour: "2-digit", minute: "2-digit" }).format(d);
+}
+
 export function formatMonthLabel(month: string): string {
   // month is "YYYY-MM"
   const [y, m] = month.split("-").map(Number);

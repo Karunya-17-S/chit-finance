@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { CalendarCheck, UserCheck, UserX, Coffee, CalendarClock, Pencil } from "lucide-react";
+import { CalendarCheck, UserCheck, UserX, Coffee, CalendarClock, Pencil, Loader2, LogIn, LogOut } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -12,14 +12,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { MarkAttendanceDialog, type AttendanceFormValues } from "@/components/attendance/mark-attendance-dialog";
 import { useDataStore } from "@/store/data-store";
 import { useDataScope } from "@/hooks/use-data-scope";
 import { useAuthStore } from "@/store/auth-store";
-import { can } from "@/lib/rbac";
-import { ROLE_LABELS } from "@/lib/rbac";
+import { can, ROLE_LABELS } from "@/lib/rbac";
 import { ATTENDANCE_TODAY } from "@/data";
-import { initials } from "@/lib/format";
+import { initials, formatTime } from "@/lib/format";
+import { attendanceService, type AttendanceRecord } from "@/lib/service/attendance-service";
 import type { Attendance, Employee } from "@/types";
 
 export default function AttendancePage() {
@@ -36,6 +37,22 @@ export default function AttendancePage() {
   const [branchFilter, setBranchFilter] = React.useState("all");
   const [dialogEmployee, setDialogEmployee] = React.useState<Employee | undefined>(undefined);
   const [dialogOpen, setDialogOpen] = React.useState(false);
+
+  // Real login/logout attendance log, fetched from the database.
+  const [loginLog, setLoginLog] = React.useState<AttendanceRecord[]>([]);
+  const [loginLogLoading, setLoginLogLoading] = React.useState(true);
+  const [submittingEmployeeId, setSubmittingEmployeeId] = React.useState<string | null>(null);
+
+  const fetchLoginLog = React.useCallback(async () => {
+    setLoginLogLoading(true);
+    const records = await attendanceService.getRecentAttendance();
+    setLoginLog(records);
+    setLoginLogLoading(false);
+  }, []);
+
+  React.useEffect(() => {
+    fetchLoginLog();
+  }, [fetchLoginLog]);
 
   const scopedEmployees = employees.filter((e) => {
     if (branchId && e.branchId !== branchId) return false;
@@ -93,11 +110,58 @@ export default function AttendancePage() {
     setDialogOpen(false);
   }
 
+  // ---- Login/logout tab helpers ----
+
+  function isEmployeeLoggedIn(employeeId: string): boolean {
+    const records = loginLog
+      .filter((a) => a.employeeId === employeeId)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return records.length > 0 && records[0].type === "login";
+  }
+
+  function latestRecordFor(employeeId: string): AttendanceRecord | null {
+    const records = loginLog
+      .filter((a) => a.employeeId === employeeId)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return records[0] ?? null;
+  }
+
+  async function handleRecordAttendance(employee: Employee, type: "login" | "logout") {
+    if (submittingEmployeeId) return;
+
+    if (type === "login" && isEmployeeLoggedIn(employee.id)) {
+      toast.error(`${employee.name} is already logged in.`);
+      return;
+    }
+    if (type === "logout" && !isEmployeeLoggedIn(employee.id)) {
+      toast.error(`${employee.name} hasn't logged in yet.`);
+      return;
+    }
+
+    setSubmittingEmployeeId(employee.id);
+    try {
+      if (type === "login") {
+        await attendanceService.recordLogin(employee.id);
+      } else {
+        await attendanceService.recordLogout(employee.id);
+      }
+      toast.success(`${employee.name} ${type === "login" ? "logged in" : "logged out"} successfully.`);
+      await fetchLoginLog();
+    } catch (error) {
+      console.error("Failed to record attendance:", error);
+      toast.error("Failed to record attendance.");
+    } finally {
+      setSubmittingEmployeeId(null);
+    }
+  }
+
+  const loggedInNow = scopedEmployees.filter((e) => isEmployeeLoggedIn(e.id)).length;
+
   return (
     <div>
       <PageHeader
         title="Attendance"
-        description="Daily staff attendance and monthly summary across branches."
+        description="Daily staff attendance, monthly summary, and live login/logout tracking."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {!branchId && (
@@ -131,6 +195,7 @@ export default function AttendancePage() {
         <TabsList>
           <TabsTrigger value="roster">Daily Roster</TabsTrigger>
           <TabsTrigger value="monthly">Monthly Summary</TabsTrigger>
+          <TabsTrigger value="login-tracking">Login/Logout Tracking {loggedInNow > 0 && `(${loggedInNow} online)`}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="roster">
@@ -228,6 +293,104 @@ export default function AttendancePage() {
               </TableBody>
             </Table>
           </div>
+        </TabsContent>
+
+        <TabsContent value="login-tracking">
+          {loginLogLoading ? (
+            <div className="flex items-center justify-center h-48">
+              <Loader2 className="h-6 w-6 animate-spin text-maroon" />
+              <span className="ml-2 text-muted-foreground">Loading login activity...</span>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={fetchLoginLog}>
+                  Refresh
+                </Button>
+              </div>
+              <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Branch</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Last Login</TableHead>
+                      <TableHead>Last Logout</TableHead>
+                      {canManage && <TableHead className="text-right">Actions</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {scopedEmployees.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          No employees found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      scopedEmployees.map((employee) => {
+                        const branch = branches.find((b) => b.id === employee.branchId);
+                        const loggedIn = isEmployeeLoggedIn(employee.id);
+                        const latest = latestRecordFor(employee.id);
+                        const isSubmittingThis = submittingEmployeeId === employee.id;
+
+                        return (
+                          <TableRow key={employee.id}>
+                            <TableCell>
+                              <p className="font-medium text-foreground">{employee.name}</p>
+                              <p className="text-xs text-muted-foreground">{employee.employeeCode}</p>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{branch?.location ?? "—"}</TableCell>
+                            <TableCell>
+                              {loggedIn ? (
+                                <Badge className="bg-green-100 text-green-700 border-green-200">
+                                  <span className="h-2 w-2 rounded-full bg-green-500 mr-1.5 inline-block animate-pulse" />
+                                  Logged In
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-200">
+                                  Offline
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {latest?.type === "login" ? formatTime(latest.timestamp) : "—"}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {latest?.type === "logout" ? formatTime(latest.timestamp) : "—"}
+                            </TableCell>
+                            {canManage && (
+                              <TableCell className="text-right">
+                                {!loggedIn ? (
+                                  <Button
+                                    size="sm"
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                    onClick={() => handleRecordAttendance(employee, "login")}
+                                    disabled={isSubmittingThis}
+                                  >
+                                    {isSubmittingThis ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogIn className="h-3.5 w-3.5" /> Log In</>}
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => handleRecordAttendance(employee, "logout")}
+                                    disabled={isSubmittingThis}
+                                  >
+                                    {isSubmittingThis ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-3.5 w-3.5" /> Log Out</>}
+                                  </Button>
+                                )}
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 

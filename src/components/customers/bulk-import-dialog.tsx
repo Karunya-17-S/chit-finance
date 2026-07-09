@@ -250,6 +250,8 @@ export function BulkImportDialog({
       return {
         id: newId,
         customerCode: `SVCF-C${String(maxId + index + 1).padStart(3, "0")}`,
+        // Optional in the sheet — server auto-generates one if left blank.
+        passbookNumber: data.passbookNumber || undefined,
         assignedEmployeeId: null,
         name: data.name || "",
         phone: data.phone || "",
@@ -263,8 +265,8 @@ export function BulkImportDialog({
         nomineePhone: data.nomineePhone || "",
         joinedDate: data.joinedDate || new Date().toISOString().split('T')[0],
         branchId: branchId || data.branchId || "br-001",
-        status: (data.status?.toLowerCase() === "inactive" ? "inactive" : "active") as "active" | "inactive",
-        avatarUrl: undefined,
+        status: data.status?.toLowerCase() === "inactive" ? "inactive" : "active",
+        avatarUrl: null,
       };
     });
 
@@ -310,7 +312,8 @@ export function BulkImportDialog({
       "nomineeName",
       "nomineePhone",
       "joinedDate",
-      "status"
+      "status",
+      "passbookNumber",
     ];
 
     const sampleData = {
@@ -325,7 +328,8 @@ export function BulkImportDialog({
       nomineeName: "Jane Doe",
       nomineePhone: "9876543212",
       joinedDate: new Date().toISOString().split('T')[0],
-      status: "active"
+      status: "active",
+      passbookNumber: "SVCF-PB-001",
     };
 
     const ws = XLSX.utils.json_to_sheet([sampleData]);

@@ -152,6 +152,7 @@ model Branch {
   locationPings LocationPing[]
   expenses      Expense[]
   attendance    Attendance[]
+  employeeAttendance EmployeeAttendance[]
 
   @@map("branches")
 }
@@ -170,10 +171,16 @@ model Employee {
   collectionTarget   Decimal      @default(0) @map("collection_target") @db.Decimal(12, 2)
   collectionAchieved Decimal      @default(0) @map("collection_achieved") @db.Decimal(12, 2)
   avatarUrl          String?      @map("avatar_url")
+  loginTime        DateTime? @map("login_time")
+  logoutTime       DateTime? @map("logout_time")
+  currentSessionId String?   @map("current_session_id")
+  isLoggedIn       Boolean   @default(false) @map("is_logged_in")
+  lastActivityAt   DateTime? @map("last_activity_at")
 
   branch            Branch         @relation(fields: [branchId], references: [id])
   assignedCustomers Customer[]     @relation("EmployeeCustomers")
   collectedPayments Payment[]      @relation("CollectedPayments")
+  employeeAttendance EmployeeAttendance[]
   chitGroups        ChitGroup[]
   followUps         FollowUp[]
   receiptsIssued    Receipt[]
@@ -204,6 +211,8 @@ model Customer {
   status             Status   @default(active)
   assignedEmployeeId String?  @map("assigned_employee_id")
   avatarUrl          String?  @map("avatar_url")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   branch           Branch       @relation(fields: [branchId], references: [id])
   assignedEmployee Employee?    @relation("EmployeeCustomers", fields: [assignedEmployeeId], references: [id])
@@ -245,7 +254,7 @@ model ChitGroup {
   members            ChitMember[]
   payments           Payment[]
   auctions           Auction[]
-
+  planImage          String?    @map("plan_image")
   @@index([branchId])
   @@map("chit_groups")
 }
@@ -446,4 +455,21 @@ model Attendance {
   @@unique([employeeId, date])
   @@index([branchId, date])
   @@map("attendance")
+}
+
+model EmployeeAttendance {
+  id         String   @id @default(cuid())
+  employeeId String   @map("employee_id")
+  branchId   String   @map("branch_id")
+  type       String
+  timestamp  DateTime @default(now())
+  date       DateTime @map("date") @db.Date
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, date])
+  @@index([timestamp])
+  @@map("employee_attendance")
 }

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Contact, MoreVertical, Upload, Trash2 } from "lucide-react";
+import { Plus, Contact, MoreVertical, Upload, Trash2, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Toolbar, SearchInput } from "@/components/shared/toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -35,17 +35,37 @@ import { formatDate } from "@/lib/format";
 import type { Customer } from "@/types";
 
 export default function CustomersPage() {
-  const customers = useDataStore((s) => s.customers);
+  const [customers, setCustomers] = React.useState<Customer[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
   const branches = useDataStore((s) => s.branches);
   const employees = useDataStore((s) => s.employees);
-  const addCustomer = useDataStore((s) => s.addCustomer);
-  const updateCustomer = useDataStore((s) => s.updateCustomer);
-  const deleteCustomer = useDataStore((s) => s.deleteCustomer);
 
   const currentUser = useAuthStore((s) => s.currentUser);
   const { branchId, employeeId } = useDataScope();
   const canManage = currentUser ? can(currentUser.role, "manageCustomers") : false;
   const readOnly = currentUser ? isReadOnly(currentUser.role) : false;
+
+  // Fetch customers from the real database.
+  const fetchCustomers = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/customers");
+      if (!response.ok) throw new Error("Failed to fetch");
+      const data = await response.json();
+      setCustomers(data);
+    } catch (error) {
+      console.error("Failed to load customers:", error);
+      toast.error("Failed to load customers from database");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
 
   const [search, setSearch] = React.useState("");
   const [branchFilter, setBranchFilter] = React.useState("all");
@@ -87,56 +107,93 @@ export default function CustomersPage() {
     setDeleteDialogOpen(true);
   }
 
-  function handleDeleteConfirm() {
+  async function handleDeleteConfirm() {
     if (!customerToDelete) return;
+
     try {
-      deleteCustomer(customerToDelete.id);
+      setIsSubmitting(true);
+      const response = await fetch(`/api/customers?id=${customerToDelete.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) throw new Error("Failed to delete");
+
+      setCustomers((prev) => prev.filter((c) => c.id !== customerToDelete.id));
       toast.success(`"${customerToDelete.name}" deleted successfully.`);
       setDeleteDialogOpen(false);
       setCustomerToDelete(undefined);
     } catch (error) {
       console.error("Delete error:", error);
-      toast.error("Failed to delete customer. Please try again.");
+      toast.error("Failed to delete customer. Please try again. (Customers with existing payments/chit memberships can't be deleted yet.)");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
-  function handleSubmit(values: CustomerFormValues) {
-    if (activeCustomer) {
-      updateCustomer(activeCustomer.id, { ...values, alternatePhone: values.alternatePhone || undefined });
-      toast.success("Customer updated successfully.");
-    } else {
-      const seq = String(customers.length + 1).padStart(3, "0");
-      addCustomer({
-        id: `cust-${seq}`,
-        customerCode: `SVCF-C${seq}`,
-        assignedEmployeeId: null,
-        ...values,
-        passbookNumber: values.passbookNumber.trim() || `SVCF-PB-${seq}`,
-        alternatePhone: values.alternatePhone || undefined,
-      });
-      toast.success("Customer added successfully.");
+  async function handleSubmit(values: CustomerFormValues) {
+    try {
+      setIsSubmitting(true);
+
+      if (activeCustomer) {
+        const response = await fetch("/api/customers", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: activeCustomer.id,
+            ...values,
+            alternatePhone: values.alternatePhone || undefined,
+          }),
+        });
+
+        if (!response.ok) throw new Error("Failed to update");
+        const updatedCustomer = await response.json();
+
+        setCustomers((prev) => prev.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c)));
+        toast.success("Customer updated successfully.");
+      } else {
+        const newCustomer = {
+          assignedEmployeeId: null,
+          ...values,
+          // passbookNumber is generated server-side if left blank — required for customer self-login.
+          passbookNumber: values.passbookNumber?.trim() || undefined,
+          alternatePhone: values.alternatePhone || undefined,
+        };
+
+        const response = await fetch("/api/customers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newCustomer),
+        });
+
+        if (!response.ok) throw new Error("Failed to create");
+        const createdCustomer = await response.json();
+
+        setCustomers((prev) => [createdCustomer, ...prev]);
+        toast.success("Customer added successfully.");
+      }
+
+      setDialogOpen(false);
+    } catch (error) {
+      console.error("Submit error:", error);
+      toast.error(activeCustomer ? "Failed to update customer" : "Failed to add customer");
+    } finally {
+      setIsSubmitting(false);
     }
-    setDialogOpen(false);
   }
 
-  function handleBulkImport(importedCustomers: any[]) {
+  async function handleBulkImport(importedCustomers: any[]) {
     if (!importedCustomers || importedCustomers.length === 0) {
       toast.error("No customers to import.");
       return;
     }
 
     try {
-      const currentCount = customers.length;
+      setIsSubmitting(true);
+      let successCount = 0;
+      const created: Customer[] = [];
 
-      importedCustomers.forEach((c, index) => {
-        const seq = String(currentCount + index + 1).padStart(3, "0");
+      for (const c of importedCustomers) {
         const newCustomer = {
-          id: `cust-${seq}`,
-          customerCode: `SVCF-C${seq}`,
-          // Respect an imported passbook number if the sheet had one, otherwise auto-generate —
-          // customer self-login depends on every customer having one.
-          passbookNumber: (c.passbookNumber && String(c.passbookNumber).trim()) || `SVCF-PB-${seq}`,
-          assignedEmployeeId: null,
           name: c.name || "",
           phone: c.phone || "",
           alternatePhone: c.alternatePhone || undefined,
@@ -149,19 +206,43 @@ export default function CustomersPage() {
           nomineePhone: c.nomineePhone || "",
           joinedDate: c.joinedDate || new Date().toISOString().split("T")[0],
           branchId: c.branchId || branchId || "br-001",
-          status: (c.status?.toLowerCase() === "inactive" ? "inactive" : "active") as "active" | "inactive",
-          avatarUrl: undefined,
+          status: c.status?.toLowerCase() === "inactive" ? "inactive" : "active",
+          assignedEmployeeId: null,
+          // Respect an imported passbook number if the sheet had one; server auto-generates otherwise.
+          passbookNumber: (c.passbookNumber && String(c.passbookNumber).trim()) || undefined,
         };
 
-        addCustomer(newCustomer);
-      });
+        const response = await fetch("/api/customers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newCustomer),
+        });
 
-      toast.success(`${importedCustomers.length} customers imported successfully!`);
+        if (response.ok) {
+          const createdCustomer = await response.json();
+          successCount++;
+          created.push(createdCustomer);
+        }
+      }
+
+      setCustomers((prev) => [...created, ...prev]);
+      toast.success(`${successCount} customers imported successfully!`);
       setImportDialogOpen(false);
     } catch (error) {
       console.error("Import error:", error);
-      toast.error("Failed to import customers. Please check the console for details.");
+      toast.error("Failed to import customers.");
+    } finally {
+      setIsSubmitting(false);
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-maroon" />
+        <span className="ml-2 text-muted-foreground">Loading customers...</span>
+      </div>
+    );
   }
 
   return (
@@ -250,7 +331,7 @@ export default function CustomersPage() {
                       </p>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{branch?.location ?? "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{c.occupation}</TableCell>
+                    <TableCell className="text-muted-foreground">{c.occupation || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{emp?.name ?? "Unassigned"}</TableCell>
                     <TableCell className="text-muted-foreground">{formatDate(c.joinedDate, "short")}</TableCell>
                     <TableCell>
@@ -299,6 +380,7 @@ export default function CustomersPage() {
         branches={branches}
         lockBranchId={branchId ?? undefined}
         onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
       />
 
       <BulkImportDialog
@@ -318,11 +400,18 @@ export default function CustomersPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteConfirm}>
-              Delete
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

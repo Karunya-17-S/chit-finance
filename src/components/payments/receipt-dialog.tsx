@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/brand/logo";
 import { getGroupsByCustomer } from "@/data";
-import { CheckCircle2, Copy, Printer } from "lucide-react";
+import { CheckCircle2, Copy, Printer, Share2 } from "lucide-react";
 import type { Branch, ChitGroup, Customer, Payment } from "@/types";
 
 interface ReceiptDialogProps {
@@ -70,6 +70,21 @@ export function ReceiptDialog({ open, onOpenChange, payment, customer, branch, c
     }
   }
 
+  function getWhatsAppUrl() {
+    const phoneNumber = customer?.phone || "";
+    const encodedMessage = encodeURIComponent(messageText);
+    if (phoneNumber) {
+      const cleanNumber = phoneNumber.replace(/\D/g, "");
+      return `https://wa.me/${cleanNumber}?text=${encodedMessage}`;
+    }
+    return `https://wa.me/?text=${encodedMessage}`;
+  }
+
+  function handleWhatsAppShare() {
+    window.open(getWhatsAppUrl(), "_blank");
+    toast.success("Opening WhatsApp...");
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -110,14 +125,20 @@ export function ReceiptDialog({ open, onOpenChange, payment, customer, branch, c
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button variant="outline" className="flex-1" onClick={handleCopy}>
             <Copy className="h-4 w-4" /> Copy Message
+          </Button>
+          <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={handleWhatsAppShare}>
+            <Share2 className="h-4 w-4" /> WhatsApp
           </Button>
           <Button onClick={() => window.print()} className="flex-1 bg-maroon hover:bg-maroon-dark">
             <Printer className="h-4 w-4" /> Print Receipt
           </Button>
         </div>
+        {customer?.phone && (
+          <p className="text-center text-xs text-muted-foreground mt-1">Sending to: {customer.phone}</p>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -57,9 +57,10 @@ interface CustomerFormDialogProps {
   branches: Branch[];
   lockBranchId?: string;
   onSubmit: (values: CustomerFormValues) => void;
+  isSubmitting?: boolean;
 }
 
-export function CustomerFormDialog({ open, onOpenChange, customer, branches, lockBranchId, onSubmit }: CustomerFormDialogProps) {
+export function CustomerFormDialog({ open, onOpenChange, customer, branches, lockBranchId, onSubmit, isSubmitting }: CustomerFormDialogProps) {
   const [values, setValues] = React.useState<CustomerFormValues>(EMPTY(lockBranchId ?? branches[0]?.id ?? ""));
   const [wasOpen, setWasOpen] = React.useState(open);
 
@@ -69,21 +70,21 @@ export function CustomerFormDialog({ open, onOpenChange, customer, branches, loc
       setValues(
         customer
           ? {
-              name: customer.name,
-              passbookNumber: customer.passbookNumber,
-              branchId: customer.branchId,
-              phone: customer.phone,
-              alternatePhone: customer.alternatePhone ?? "",
-              address: customer.address,
-              aadhaarNumber: customer.aadhaarNumber,
-              panNumber: customer.panNumber,
-              occupation: customer.occupation,
-              monthlyIncome: customer.monthlyIncome,
-              nomineeName: customer.nomineeName,
-              nomineePhone: customer.nomineePhone,
-              joinedDate: customer.joinedDate,
-              status: customer.status,
-            }
+            name: customer.name,
+            passbookNumber: customer.passbookNumber,
+            branchId: customer.branchId,
+            phone: customer.phone,
+            alternatePhone: customer.alternatePhone ?? "",
+            address: customer.address,
+            aadhaarNumber: customer.aadhaarNumber,
+            panNumber: customer.panNumber,
+            occupation: customer.occupation,
+            monthlyIncome: customer.monthlyIncome,
+            nomineeName: customer.nomineeName,
+            nomineePhone: customer.nomineePhone,
+            joinedDate: customer.joinedDate,
+            status: customer.status,
+          }
           : EMPTY(lockBranchId ?? branches[0]?.id ?? "")
       );
     }
@@ -201,11 +202,11 @@ export function CustomerFormDialog({ open, onOpenChange, customer, branches, loc
           </form>
         </ScrollArea>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit" form="customer-form" className="bg-maroon hover:bg-maroon-dark">
-            {customer ? "Save Changes" : "Create Customer"}
+          <Button type="submit" form="customer-form" className="bg-maroon hover:bg-maroon-dark" disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : customer ? "Save Changes" : "Create Customer"}
           </Button>
         </DialogFooter>
       </DialogContent>
