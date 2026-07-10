@@ -32,9 +32,10 @@ interface Props {
   date: string;
   existing?: Attendance;
   onSubmit: (values: AttendanceFormValues) => void;
+  isSubmitting?: boolean;
 }
 
-export function MarkAttendanceDialog({ open, onOpenChange, employee, date, existing, onSubmit }: Props) {
+export function MarkAttendanceDialog({ open, onOpenChange, employee, date, existing, onSubmit, isSubmitting }: Props) {
   const [values, setValues] = React.useState<AttendanceFormValues>({ status: "present", checkIn: "09:00", checkOut: "18:00", remarks: "" });
   const [wasOpen, setWasOpen] = React.useState(open);
 
@@ -104,11 +105,11 @@ export function MarkAttendanceDialog({ open, onOpenChange, employee, date, exist
             <Textarea id="remarks" rows={2} value={values.remarks} onChange={(e) => set("remarks", e.target.value)} />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-maroon hover:bg-maroon-dark">
-              Save
+            <Button type="submit" className="bg-maroon hover:bg-maroon-dark" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </form>

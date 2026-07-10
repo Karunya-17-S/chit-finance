@@ -26,8 +26,6 @@ import type { Attendance, Employee } from "@/types";
 export default function AttendancePage() {
   const employees = useDataStore((s) => s.employees);
   const branches = useDataStore((s) => s.branches);
-  const attendance = useDataStore((s) => s.attendance);
-  const upsertAttendance = useDataStore((s) => s.upsertAttendance);
 
   const currentUser = useAuthStore((s) => s.currentUser);
   const { branchId } = useDataScope();
@@ -37,6 +35,32 @@ export default function AttendancePage() {
   const [branchFilter, setBranchFilter] = React.useState("all");
   const [dialogEmployee, setDialogEmployee] = React.useState<Employee | undefined>(undefined);
   const [dialogOpen, setDialogOpen] = React.useState(false);
+
+  // Real daily status attendance (present/absent/half-day/leave), from the database.
+  const [attendance, setAttendance] = React.useState<Attendance[]>([]);
+  const [attendanceLoading, setAttendanceLoading] = React.useState(true);
+  const [savingStatus, setSavingStatus] = React.useState(false);
+
+  const fetchAttendance = React.useCallback(async () => {
+    setAttendanceLoading(true);
+    try {
+      const res = await fetch("/api/attendance-status");
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data = await res.json();
+      // Normalize to plain YYYY-MM-DD so string comparisons against the date picker work.
+      const normalized: Attendance[] = data.map((r: any) => ({ ...r, date: String(r.date).split("T")[0] }));
+      setAttendance(normalized);
+    } catch (error) {
+      console.error("Failed to load attendance:", error);
+      toast.error("Failed to load attendance data.");
+    } finally {
+      setAttendanceLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchAttendance();
+  }, [fetchAttendance]);
 
   // Real login/logout attendance log, fetched from the database.
   const [loginLog, setLoginLog] = React.useState<AttendanceRecord[]>([]);
@@ -75,7 +99,7 @@ export default function AttendancePage() {
   const workingCount = roster.filter((r) => r.record && r.record.status !== "week_off").length;
   const attendancePct = workingCount ? Math.round(((counts.present + counts.halfDay * 0.5) / workingCount) * 100) : 0;
 
-  // Monthly summary across all seeded attendance (per scoped employee).
+  // Monthly summary across all fetched attendance (per scoped employee).
   const monthly = scopedEmployees.map((e) => {
     const recs = attendance.filter((a) => a.employeeId === e.id);
     const working = recs.filter((r) => r.status !== "week_off").length;
@@ -92,22 +116,36 @@ export default function AttendancePage() {
     setDialogOpen(true);
   }
 
-  function handleSubmit(values: AttendanceFormValues) {
+  async function handleSubmit(values: AttendanceFormValues) {
     if (!dialogEmployee) return;
     const isWorking = values.status === "present" || values.status === "half_day";
-    const existing = recordFor(dialogEmployee.id, date);
-    upsertAttendance({
-      id: existing?.id ?? `att-local-${Date.now()}`,
-      employeeId: dialogEmployee.id,
-      branchId: dialogEmployee.branchId,
-      date,
-      status: values.status,
-      checkIn: isWorking ? values.checkIn : null,
-      checkOut: isWorking ? values.checkOut : null,
-      remarks: values.remarks || undefined,
-    });
-    toast.success(`Attendance saved for ${dialogEmployee.name}.`);
-    setDialogOpen(false);
+
+    setSavingStatus(true);
+    try {
+      const res = await fetch("/api/attendance-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeId: dialogEmployee.id,
+          branchId: dialogEmployee.branchId,
+          date,
+          status: values.status,
+          checkIn: isWorking ? values.checkIn : null,
+          checkOut: isWorking ? values.checkOut : null,
+          remarks: values.remarks || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+
+      toast.success(`Attendance saved for ${dialogEmployee.name}.`);
+      setDialogOpen(false);
+      await fetchAttendance();
+    } catch (error) {
+      console.error("Failed to save attendance:", error);
+      toast.error("Failed to save attendance.");
+    } finally {
+      setSavingStatus(false);
+    }
   }
 
   // ---- Login/logout tab helpers ----
@@ -199,7 +237,12 @@ export default function AttendancePage() {
         </TabsList>
 
         <TabsContent value="roster">
-          {roster.length === 0 ? (
+          {attendanceLoading ? (
+            <div className="flex items-center justify-center h-48">
+              <Loader2 className="h-6 w-6 animate-spin text-maroon" />
+              <span className="ml-2 text-muted-foreground">Loading attendance...</span>
+            </div>
+          ) : roster.length === 0 ? (
             <EmptyState icon={CalendarCheck} title="No staff to show" description="No employees match this branch." />
           ) : (
             <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
@@ -401,6 +444,7 @@ export default function AttendancePage() {
         date={date}
         existing={dialogEmployee ? recordFor(dialogEmployee.id, date) : undefined}
         onSubmit={handleSubmit}
+        isSubmitting={savingStatus}
       />
     </div>
   );
