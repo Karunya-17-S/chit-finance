@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useDataStore } from "@/store/data-store";
 import { useDataScope } from "@/hooks/use-data-scope";
 import { reportDefinitions, currentMonth, collectionTrend } from "@/data";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, todayDateString } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ReportType } from "@/types";
 
@@ -29,7 +29,7 @@ export default function ReportsPage() {
   const [activeType, setActiveType] = React.useState<ReportType>("branch_collection");
   const [branchFilter, setBranchFilter] = React.useState("all");
   const [fromDate, setFromDate] = React.useState("2026-06-01");
-  const [toDate, setToDate] = React.useState("2026-07-02");
+  const [toDate, setToDate] = React.useState(todayDateString());
 
   const activeReport = reportDefinitions.find((r) => r.type === activeType)!;
   const effectiveBranchId = branchId ?? (branchFilter !== "all" ? branchFilter : undefined);
@@ -375,7 +375,7 @@ export default function ReportsPage() {
             )}
 
             <p className="mt-4 text-[11px] text-muted-foreground">
-              Showing data for {currentMonth} · Generated {formatDate("2026-07-02", "long")}
+              Showing data for {currentMonth} · Generated {formatDate(todayDateString(), "long")}
             </p>
           </SectionCard>
         </div>

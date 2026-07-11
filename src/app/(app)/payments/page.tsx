@@ -17,12 +17,12 @@ import { useDataStore } from "@/store/data-store";
 import { useDataScope } from "@/hooks/use-data-scope";
 import { useAuthStore } from "@/store/auth-store";
 import { can } from "@/lib/rbac";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, todayDateString } from "@/lib/format";
 import { currentMonth } from "@/data";
 import type { Payment } from "@/types";
 import { Hourglass, AlertTriangle, CalendarCheck } from "lucide-react";
 
-const TODAY = "2026-07-02";
+const TODAY = todayDateString();
 
 export default function PaymentsPage() {
   const payments = useDataStore((s) => s.payments);

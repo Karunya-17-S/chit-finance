@@ -17,7 +17,7 @@ import {
 import { SidebarContent } from "@/components/layout/sidebar-content";
 import { useAuthStore } from "@/store/auth-store";
 import { ROLE_LABELS } from "@/lib/rbac";
-import { initials, formatDate } from "@/lib/format";
+import { initials, formatDate, todayDateString } from "@/lib/format";
 
 const PAGE_TITLES: Record<string, string> = {
   dashboard: "Dashboard",
@@ -68,7 +68,7 @@ export function Topbar() {
       <div className="ml-auto flex items-center gap-2">
         <div className="hidden items-center gap-1.5 rounded-full border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground sm:flex">
           <CalendarDays className="h-3.5 w-3.5 text-gold" />
-          {formatDate("2026-07-02", "long")}
+          {formatDate(todayDateString(), "long")}
         </div>
 
         <Button

@@ -18,8 +18,7 @@ import { useDataStore } from "@/store/data-store";
 import { useDataScope } from "@/hooks/use-data-scope";
 import { useAuthStore } from "@/store/auth-store";
 import { can, ROLE_LABELS } from "@/lib/rbac";
-import { ATTENDANCE_TODAY } from "@/data";
-import { initials, formatTime } from "@/lib/format";
+import { initials, formatTime, todayDateString } from "@/lib/format";
 import { attendanceService, type AttendanceRecord } from "@/lib/service/attendance-service";
 import type { Attendance, Employee } from "@/types";
 
@@ -31,7 +30,7 @@ export default function AttendancePage() {
   const { branchId } = useDataScope();
   const canManage = currentUser ? can(currentUser.role, "manageEmployees") : false;
 
-  const [date, setDate] = React.useState(ATTENDANCE_TODAY);
+  const [date, setDate] = React.useState(todayDateString());
   const [branchFilter, setBranchFilter] = React.useState("all");
   const [dialogEmployee, setDialogEmployee] = React.useState<Employee | undefined>(undefined);
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -217,7 +216,7 @@ export default function AttendancePage() {
                 </SelectContent>
               </Select>
             )}
-            <Input type="date" value={date} max={ATTENDANCE_TODAY} onChange={(e) => setDate(e.target.value)} className="w-44" />
+            <Input type="date" value={date} max={todayDateString()} onChange={(e) => setDate(e.target.value)} className="w-44" />
           </div>
         }
       />

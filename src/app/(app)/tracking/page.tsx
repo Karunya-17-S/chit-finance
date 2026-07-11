@@ -17,10 +17,10 @@ import { LiveMap } from "@/components/tracking/live-map";
 import { useDataStore } from "@/store/data-store";
 import { useDataScope } from "@/hooks/use-data-scope";
 import { useAuthStore } from "@/store/auth-store";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, todayDateString } from "@/lib/format";
 import type { Customer, FollowUp } from "@/types";
 
-const TODAY = "2026-07-02";
+const TODAY = todayDateString();
 
 export default function TrackingPage() {
   const followUps = useDataStore((s) => s.followUps);

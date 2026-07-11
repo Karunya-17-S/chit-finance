@@ -13,7 +13,7 @@ import { TemplateFormDialog, type TemplateFormValues } from "@/components/templa
 import { useDataStore } from "@/store/data-store";
 import { useAuthStore } from "@/store/auth-store";
 import { can } from "@/lib/rbac";
-import { formatDate } from "@/lib/format";
+import { formatDate, todayDateString } from "@/lib/format";
 import type { Template, TemplateType } from "@/types";
 
 const TYPE_LABELS: Record<TemplateType, string> = {
@@ -68,7 +68,7 @@ export default function TemplatesPage() {
 
   function handleSubmit(values: TemplateFormValues) {
     const variables = extractVariables(values.content);
-    const today = "2026-07-02";
+    const today = todayDateString();
     if (activeTemplate) {
       updateTemplate(activeTemplate.id, { ...values, variables, updatedAt: today });
       toast.success("Template updated successfully.");

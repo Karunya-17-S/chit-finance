@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Sparkles } from "lucide-react";
-import { formatDate } from "@/lib/format";
+import { formatDate, todayDateString } from "@/lib/format";
 
 function greetingForHour(hour: number) {
   if (hour < 12) return "Good Morning";
@@ -44,7 +44,7 @@ export function HeroCard({ name }: { name: string }) {
         <div className="flex items-center gap-3">
           <div className="rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-center backdrop-blur-sm">
             <p className="text-[10px] font-medium uppercase tracking-wide text-white/60">Today</p>
-            <p className="text-sm font-semibold">{formatDate("2026-07-02", "short")}</p>
+            <p className="text-sm font-semibold">{formatDate(todayDateString(), "short")}</p>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/logo.svg" alt="Shree Vaari Chit Finance" className="h-12 w-12 shrink-0 object-contain" />

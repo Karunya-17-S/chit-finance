@@ -20,7 +20,7 @@ import { useDataStore } from "@/store/data-store";
 import { useAuthStore } from "@/store/auth-store";
 import { can } from "@/lib/rbac";
 import { getMembersByGroup, getAuctionsByGroup } from "@/data";
-import { formatCurrency, formatCurrencyCompact, formatDate, FREQUENCY_LABELS, frequencySuffix } from "@/lib/format";
+import { formatCurrency, formatCurrencyCompact, formatDate, FREQUENCY_LABELS, frequencySuffix, todayDateString } from "@/lib/format";
 import type { ChitMember } from "@/types";
 
 export default function ChitGroupDetailPage() {
@@ -80,13 +80,13 @@ export default function ChitGroupDetailPage() {
     if (group.collectionFrequency === "daily") dueDate.setDate(dueDate.getDate() + i);
     else if (group.collectionFrequency === "weekly") dueDate.setDate(dueDate.getDate() + i * 7);
     else dueDate.setMonth(dueDate.getMonth() + i);
-    const isPast = dueDate < new Date("2026-07-02");
+    const isPast = dueDate < new Date(todayDateString());
     return { period: i + 1, dueDate: dueDate.toISOString().slice(0, 10), amount: group.monthlyInstallment, status: isPast ? "completed" : "pending" };
   });
 
   // How many periods have elapsed since the group started (used to default the
   // entry period when a member joins an already-running chit).
-  const TODAY = new Date("2026-07-02");
+  const TODAY = new Date(todayDateString());
   let elapsed = 1;
   if (group.status !== "pending") {
     const start = new Date(group.startDate);
@@ -107,7 +107,7 @@ export default function ChitGroupDetailPage() {
       chitGroupId: group.id,
       customerId: selectedNewMember,
       agreementNo: String(134 + members.length),
-      joinedDate: "2026-07-02",
+      joinedDate: todayDateString(),
       entryPeriod,
       hasWon: false,
       status: "active",

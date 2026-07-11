@@ -53,6 +53,12 @@ export function formatTime(date: string | Date | null): string {
   return new Intl.DateTimeFormat("en-IN", { hour: "2-digit", minute: "2-digit" }).format(d);
 }
 
+// Today's date as "YYYY-MM-DD", based on the real system clock — use this
+// instead of any hardcoded demo date anywhere in the app.
+export function todayDateString(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
 export function formatMonthLabel(month: string): string {
   // month is "YYYY-MM"
   const [y, m] = month.split("-").map(Number);

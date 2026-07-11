@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Branch, Expense, ExpenseCategory, PaymentMode } from "@/types";
 import { EXPENSE_CATEGORY_LABELS } from "@/lib/expense-meta";
+import { todayDateString } from "@/lib/format";
 
 export interface ExpenseFormValues {
   branchId: string;
@@ -27,7 +28,7 @@ const empty = (branchId: string): ExpenseFormValues => ({
   category: "rent",
   title: "",
   amount: 0,
-  date: "2026-07-02",
+  date: todayDateString(),
   paidTo: "",
   paymentMode: "bank_transfer",
   billNumber: "",
@@ -64,16 +65,16 @@ export function ExpenseFormDialog({ open, onOpenChange, onSubmit, branches, defa
       setValues(
         expense
           ? {
-              branchId: expense.branchId,
-              category: expense.category,
-              title: expense.title,
-              amount: expense.amount,
-              date: expense.date,
-              paidTo: expense.paidTo,
-              paymentMode: expense.paymentMode,
-              billNumber: expense.billNumber ?? "",
-              remarks: expense.remarks ?? "",
-            }
+            branchId: expense.branchId,
+            category: expense.category,
+            title: expense.title,
+            amount: expense.amount,
+            date: expense.date,
+            paidTo: expense.paidTo,
+            paymentMode: expense.paymentMode,
+            billNumber: expense.billNumber ?? "",
+            remarks: expense.remarks ?? "",
+          }
           : empty(defaultBranchId)
       );
     }
