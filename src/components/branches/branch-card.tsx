@@ -13,9 +13,10 @@ interface BranchCardProps {
   canManage: boolean;
   onEdit: () => void;
   onToggleStatus: () => void;
+  onDelete: () => void;
 }
 
-export function BranchCard({ branch, canManage, onEdit, onToggleStatus }: BranchCardProps) {
+export function BranchCard({ branch, canManage, onEdit, onToggleStatus, onDelete }: BranchCardProps) {
   return (
     <div className="flex flex-col rounded-2xl border border-border bg-card p-5 shadow-sm transition hover:shadow-md">
       <div className="flex items-start justify-between gap-2">
@@ -41,6 +42,9 @@ export function BranchCard({ branch, canManage, onEdit, onToggleStatus }: Branch
               <DropdownMenuItem onClick={onEdit}>Edit Branch</DropdownMenuItem>
               <DropdownMenuItem onClick={onToggleStatus} variant={branch.status === "active" ? "destructive" : "default"}>
                 {branch.status === "active" ? "Deactivate" : "Activate"}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onDelete} variant="destructive">
+                Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

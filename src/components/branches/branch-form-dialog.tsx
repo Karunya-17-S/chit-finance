@@ -44,9 +44,10 @@ interface BranchFormDialogProps {
   onOpenChange: (open: boolean) => void;
   branch?: Branch;
   onSubmit: (values: BranchFormValues) => void;
+  isSubmitting?: boolean;
 }
 
-export function BranchFormDialog({ open, onOpenChange, branch, onSubmit }: BranchFormDialogProps) {
+export function BranchFormDialog({ open, onOpenChange, branch, onSubmit, isSubmitting }: BranchFormDialogProps) {
   const [values, setValues] = React.useState<BranchFormValues>(EMPTY);
   const [wasOpen, setWasOpen] = React.useState(open);
 
@@ -56,16 +57,16 @@ export function BranchFormDialog({ open, onOpenChange, branch, onSubmit }: Branc
       setValues(
         branch
           ? {
-              name: branch.name,
-              code: branch.code,
-              location: branch.location,
-              address: branch.address,
-              managerName: branch.managerName,
-              phone: branch.phone,
-              email: branch.email,
-              openingDate: branch.openingDate,
-              status: branch.status,
-            }
+            name: branch.name,
+            code: branch.code,
+            location: branch.location,
+            address: branch.address,
+            managerName: branch.managerName,
+            phone: branch.phone,
+            email: branch.email,
+            openingDate: branch.openingDate,
+            status: branch.status,
+          }
           : EMPTY
       );
     }
@@ -137,11 +138,11 @@ export function BranchFormDialog({ open, onOpenChange, branch, onSubmit }: Branc
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-maroon hover:bg-maroon-dark">
-              {branch ? "Save Changes" : "Create Branch"}
+            <Button type="submit" className="bg-maroon hover:bg-maroon-dark" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : branch ? "Save Changes" : "Create Branch"}
             </Button>
           </DialogFooter>
         </form>

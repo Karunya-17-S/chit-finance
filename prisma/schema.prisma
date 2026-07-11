@@ -142,6 +142,7 @@ model Branch {
   email       String
   openingDate DateTime @map("opening_date") @db.Date
   status      Status   @default(active)
+  deletedAt DateTime? @map("deleted_at")
 
   users         User[]
   employees     Employee[]
@@ -153,6 +154,7 @@ model Branch {
   expenses      Expense[]
   attendance    Attendance[]
   employeeAttendance EmployeeAttendance[]
+  
 
   @@map("branches")
 }
